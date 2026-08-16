@@ -1,13 +1,114 @@
-import { describe, expect, it } from "vitest";
-import { renderShell } from "./shell";
+import { describe, expect, it, vi } from "vitest";
+import { GuestApiError } from "./api";
+import { mountGuestApp } from "./shell";
 
-describe("guest shell", () => {
-  it("renders the app name and connection instruction", () => {
+describe("guest login", () => {
+  it("renders a six digit one-time-code form", () => {
     const root = document.createElement("main");
 
-    renderShell(root);
+    mountGuestApp(root, { login: vi.fn() });
 
+    const input = root.querySelector<HTMLInputElement>("#pin");
     expect(root.querySelector("h1")?.textContent).toBe("Hold My Files");
-    expect(root.textContent).toContain("PIN shown on the sharing phone");
+    expect(input?.type).toBe("text");
+    expect(input?.inputMode).toBe("numeric");
+    expect(input?.pattern).toBe("[0-9]{6}");
+    expect(input?.maxLength).toBe(6);
+    expect(input?.autocomplete).toBe("one-time-code");
+    expect(root.querySelector("[role='alert']")).not.toBeNull();
+  });
+
+  it("rejects malformed input without calling the server", () => {
+    const root = document.createElement("main");
+    document.body.append(root);
+    const login = vi.fn();
+    mountGuestApp(root, { login });
+    const input = requiredInput(root);
+    input.value = "42";
+
+    submit(root);
+
+    expect(login).not.toHaveBeenCalled();
+    expect(root.querySelector("[role='alert']")?.textContent).toContain("six digits");
+    expect(document.activeElement).toBe(input);
+    root.remove();
+  });
+
+  it("preserves leading zeroes and clears the PIN after login", async () => {
+    const root = document.createElement("main");
+    document.body.append(root);
+    const login = vi.fn(async () => undefined);
+    mountGuestApp(root, { login });
+    const input = requiredInput(root);
+    input.value = "000042";
+
+    submit(root);
+
+    await vi.waitFor(() => expect(login).toHaveBeenCalledWith("000042"));
+    await vi.waitFor(() =>
+      expect(root.querySelector("h1")?.textContent).toBe("Shared files"),
+    );
+    expect(root.textContent).not.toContain("000042");
+    root.remove();
+  });
+
+  it("shows a fixed message when the PIN is rejected", async () => {
+    const root = document.createElement("main");
+    document.body.append(root);
+    const login = vi.fn(async () => {
+      throw new GuestApiError(401);
+    });
+    mountGuestApp(root, { login });
+    const input = requiredInput(root);
+    input.value = "000042";
+
+    submit(root);
+
+    await vi.waitFor(() =>
+      expect(root.querySelector("[role='alert']")?.textContent).toBe(
+        "That PIN did not work.",
+      ),
+    );
+    expect(root.textContent).not.toContain("000042");
+    expect(document.activeElement).toBe(input);
+    expect(input.disabled).toBe(false);
+    root.remove();
+  });
+
+  it("blocks another submit while login is pending", async () => {
+    const root = document.createElement("main");
+    let finishLogin: (() => void) | undefined;
+    const login = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishLogin = resolve;
+        }),
+    );
+    mountGuestApp(root, { login });
+    const input = requiredInput(root);
+    input.value = "123456";
+
+    submit(root);
+    submit(root);
+
+    expect(login).toHaveBeenCalledTimes(1);
+    finishLogin?.();
+    await vi.waitFor(() =>
+      expect(root.querySelector("h1")?.textContent).toBe("Shared files"),
+    );
   });
 });
+
+function requiredInput(root: HTMLElement): HTMLInputElement {
+  const input = root.querySelector<HTMLInputElement>("#pin");
+  if (input === null) {
+    throw new Error("PIN input is missing");
+  }
+  return input;
+}
+
+function submit(root: HTMLElement): void {
+  root.querySelector("form")?.dispatchEvent(
+    new Event("submit", { bubbles: true, cancelable: true }),
+  );
+}

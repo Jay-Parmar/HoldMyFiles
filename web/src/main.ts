@@ -1,9 +1,10 @@
 import "./styles.css";
-import { renderShell } from "./shell";
+import { HttpGuestApi } from "./api";
+import { mountGuestApp } from "./shell";
 
 const root = document.querySelector<HTMLElement>("#app");
 if (root === null) {
   throw new Error("Guest application root is missing");
 }
 
-renderShell(root);
+mountGuestApp(root, new HttpGuestApi());
