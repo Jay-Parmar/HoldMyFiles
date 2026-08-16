@@ -46,6 +46,7 @@ class GuestFileBrowser<R : Any, N : Any>(
     handleClock: MonotonicClock = SystemMonotonicClock,
     handleLifetimeMillis: Long = 15 * 60 * 1_000L,
     handleCapacity: Int = 4_096,
+    private val maxListingEntries: Int = 1_000,
 ) {
     private val handles = OpaqueHandleRegistry<NodeTarget<N>>(
         random = handleRandom,
@@ -53,6 +54,10 @@ class GuestFileBrowser<R : Any, N : Any>(
         lifetimeMillis = handleLifetimeMillis,
         capacity = handleCapacity,
     )
+
+    init {
+        require(maxListingEntries > 0)
+    }
 
     suspend fun roots(): BrowseOutcome<GuestListing> {
         val snapshot = catalog.snapshot()
@@ -90,6 +95,57 @@ class GuestFileBrowser<R : Any, N : Any>(
                 displayName = share.label,
                 kind = StorageNodeKind.Directory,
                 sizeBytes = null,
+            )
+        }
+
+        return BrowseOutcome.Ok(GuestListing(guestNodes, truncated))
+    }
+
+    suspend fun list(encodedHandle: String): BrowseOutcome<GuestListing> {
+        val target = handles.resolve(encodedHandle) ?: return BrowseOutcome.InvalidHandle
+        val snapshot = catalog.snapshot()
+        if (snapshot.version != target.shareSetVersion) {
+            return BrowseOutcome.StaleHandle
+        }
+
+        val share = snapshot.shares.firstOrNull { candidate -> candidate.id == target.shareId }
+        if (share == null || !share.enabled) {
+            return BrowseOutcome.StaleHandle
+        }
+        if (target.node.kind != StorageNodeKind.Directory) {
+            return BrowseOutcome.WrongKind
+        }
+
+        val listing = when (
+            val result = gateway.listChildren(share.storageRoot, target.node)
+        ) {
+            is StorageOutcome.Ok -> result.value
+            StorageOutcome.Missing -> return BrowseOutcome.Missing
+            StorageOutcome.WrongKind -> return BrowseOutcome.WrongKind
+            StorageOutcome.Busy -> return BrowseOutcome.Busy
+            else -> return BrowseOutcome.Unavailable
+        }
+
+        val guestNodes = mutableListOf<GuestNode>()
+        var truncated = listing.truncated || listing.nodes.size > maxListingEntries
+        for (node in listing.nodes.take(maxListingEntries)) {
+            val handle = handles.issue(
+                NodeTarget(
+                    shareId = share.id,
+                    shareSetVersion = snapshot.version,
+                    node = node,
+                ),
+            )
+            if (handle == null) {
+                truncated = true
+                break
+            }
+
+            guestNodes += GuestNode(
+                handle = handle,
+                displayName = node.displayName,
+                kind = node.kind,
+                sizeBytes = node.sizeBytes,
             )
         }
 
