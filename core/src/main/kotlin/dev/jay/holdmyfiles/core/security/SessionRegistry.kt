@@ -45,6 +45,10 @@ class SessionRegistry(
 
     @Synchronized
     fun validate(encodedToken: String): Boolean {
+        if (!encodedToken.isUnpaddedBase64Url(ENCODED_TOKEN_LENGTH)) {
+            return false
+        }
+
         val session = sessions[encodedToken] ?: return false
         val nowMillis = clock.nowMillis()
 
@@ -59,7 +63,9 @@ class SessionRegistry(
 
     @Synchronized
     fun revoke(encodedToken: String) {
-        sessions.remove(encodedToken)
+        if (encodedToken.isUnpaddedBase64Url(ENCODED_TOKEN_LENGTH)) {
+            sessions.remove(encodedToken)
+        }
     }
 
     @Synchronized
@@ -69,6 +75,7 @@ class SessionRegistry(
 
     private companion object {
         const val TOKEN_BYTES = 32
+        const val ENCODED_TOKEN_LENGTH = 43
         const val MAX_GENERATION_ATTEMPTS = 8
         val ENCODER: Base64.Encoder = Base64.getUrlEncoder().withoutPadding()
     }

@@ -107,6 +107,15 @@ class OpaqueHandleRegistryTest {
         assertSame(original, registry.resolve(handle.encodedValue()))
     }
 
+    @Test
+    fun `rejects malformed handle values`() {
+        val registry = OpaqueHandleRegistry<Target>(sequentialBytes())
+
+        assertNull(registry.resolve("a".repeat(10_000)))
+        assertNull(registry.resolve("!".repeat(32)))
+        assertNull(registry.resolve("a".repeat(31)))
+    }
+
     private fun sequentialBytes(): RandomByteSource = RandomByteSource { destination ->
         destination.indices.forEach { index ->
             destination[index] = index.toByte()

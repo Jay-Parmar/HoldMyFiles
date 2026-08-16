@@ -63,12 +63,12 @@ Exit check: no guest-controlled path or URI can enter the storage layer.
 
 ## 4. Storage gateway
 
-- [ ] Define platform-independent node models
-- [ ] Query a tree root and its children
-- [ ] Distinguish directories and regular files
-- [ ] Open file metadata and content streams
+- [x] Define platform-independent node models
+- [x] Query a tree root and its children through the core gateway
+- [x] Distinguish directories and regular files
+- [x] Open file metadata and content streams through the core gateway
 - [ ] Handle missing grants and removed storage
-- [ ] Bound concurrent open streams
+- [x] Bound concurrent open streams
 
 Test loop:
 
