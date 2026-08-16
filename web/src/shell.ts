@@ -1,14 +1,24 @@
 import { GuestApiError } from "./api";
+import type { GuestListing, GuestNode } from "./api";
 
-interface SessionApi {
+interface GuestApi {
   login(pin: string): Promise<void>;
+  roots(): Promise<GuestListing>;
+  list(handle: string): Promise<GuestListing>;
 }
 
-export function mountGuestApp(root: HTMLElement, api: SessionApi): void {
+interface BrowserFrame {
+  readonly name: string;
+  readonly handle: string | null;
+}
+
+const ROOT_FRAME: BrowserFrame = { name: "Shared files", handle: null };
+
+export function mountGuestApp(root: HTMLElement, api: GuestApi): void {
   renderLogin(root, api);
 }
 
-function renderLogin(root: HTMLElement, api: SessionApi): void {
+function renderLogin(root: HTMLElement, api: GuestApi, initialError?: string): void {
   const section = document.createElement("section");
   section.className = "card";
   section.setAttribute("aria-labelledby", "login-title");
@@ -66,6 +76,9 @@ function renderLogin(root: HTMLElement, api: SessionApi): void {
   section.append(brand, heading, introduction, form);
   root.replaceChildren(section);
   input.focus();
+  if (initialError !== undefined) {
+    showError(error, initialError);
+  }
 
   let submitting = false;
   form.addEventListener("submit", (event) => {
@@ -86,7 +99,7 @@ function renderLogin(root: HTMLElement, api: SessionApi): void {
       .login(pin)
       .then(() => {
         input.value = "";
-        renderAuthenticated(root);
+        void loadFrame(root, api, [ROOT_FRAME]);
       })
       .catch((cause: unknown) => {
         input.value = "";
@@ -102,17 +115,217 @@ function renderLogin(root: HTMLElement, api: SessionApi): void {
   });
 }
 
-function renderAuthenticated(root: HTMLElement): void {
+async function loadFrame(
+  root: HTMLElement,
+  api: GuestApi,
+  frames: readonly BrowserFrame[],
+): Promise<void> {
+  const frame = frames.at(-1);
+  if (frame === undefined) {
+    renderBrowseFailure(root, api, frames, new GuestApiError(502));
+    return;
+  }
+
+  renderLoading(root, frame.name);
+  try {
+    const listing =
+      frame.handle === null ? await api.roots() : await api.list(frame.handle);
+    renderListing(root, api, frames, listing);
+  } catch (cause: unknown) {
+    renderBrowseFailure(root, api, frames, cause);
+  }
+}
+
+function renderLoading(root: HTMLElement, title: string): void {
   const heading = document.createElement("h1");
   heading.tabIndex = -1;
-  heading.textContent = "Shared files";
+  appendDirectionalText(heading, title);
 
   const status = document.createElement("p");
   status.setAttribute("role", "status");
-  status.textContent = "Connected. Loading shares.";
+  status.textContent = "Loading shared files.";
 
   root.replaceChildren(heading, status);
   heading.focus();
+}
+
+function renderListing(
+  root: HTMLElement,
+  api: GuestApi,
+  frames: readonly BrowserFrame[],
+  listing: GuestListing,
+): void {
+  const frame = frames.at(-1);
+  if (frame === undefined) {
+    renderBrowseFailure(root, api, frames, new GuestApiError(502));
+    return;
+  }
+
+  const breadcrumbs = createBreadcrumbs(root, api, frames);
+  const heading = document.createElement("h1");
+  heading.tabIndex = -1;
+  appendDirectionalText(heading, frame.name);
+
+  const list = document.createElement("ul");
+  list.className = "node-list";
+  for (const node of listing.nodes) {
+    list.append(createNodeRow(root, api, frames, node));
+  }
+
+  const content: Node[] = [breadcrumbs, heading];
+  if (listing.nodes.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = "Nothing is shared here yet.";
+    content.push(empty);
+  } else {
+    content.push(list);
+  }
+  if (listing.truncated) {
+    const notice = document.createElement("p");
+    notice.className = "notice";
+    notice.setAttribute("role", "status");
+    notice.textContent = "Only the first 1,000 items are shown.";
+    content.push(notice);
+  }
+
+  root.replaceChildren(...content);
+  heading.focus();
+}
+
+function createBreadcrumbs(
+  root: HTMLElement,
+  api: GuestApi,
+  frames: readonly BrowserFrame[],
+): HTMLElement {
+  const navigation = document.createElement("nav");
+  navigation.setAttribute("aria-label", "Breadcrumb");
+  const list = document.createElement("ol");
+  list.className = "breadcrumbs";
+
+  frames.forEach((frame, index) => {
+    const item = document.createElement("li");
+    if (index === frames.length - 1) {
+      const current = document.createElement("span");
+      current.setAttribute("aria-current", "page");
+      appendDirectionalText(current, frame.name);
+      item.append(current);
+    } else {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "breadcrumb-button";
+      appendDirectionalText(button, frame.name);
+      button.addEventListener("click", () => {
+        void loadFrame(root, api, frames.slice(0, index + 1));
+      });
+      item.append(button);
+    }
+    list.append(item);
+  });
+
+  navigation.append(list);
+  return navigation;
+}
+
+function createNodeRow(
+  root: HTMLElement,
+  api: GuestApi,
+  frames: readonly BrowserFrame[],
+  node: GuestNode,
+): HTMLElement {
+  const item = document.createElement("li");
+  item.className = "node-row";
+  const label = document.createElement("bdi");
+  label.dir = "auto";
+  label.textContent = node.name;
+
+  if (node.kind === "directory") {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "node-action node-directory";
+    button.append(label);
+    button.addEventListener("click", () => {
+      void loadFrame(root, api, [
+        ...frames,
+        { name: node.name, handle: node.handle },
+      ]);
+    });
+    item.append(button);
+    return item;
+  }
+
+  const link = document.createElement("a");
+  link.className = "node-action node-file";
+  link.href = `/api/v1/files/${node.handle}`;
+  link.download = "";
+  link.append(label);
+  if (node.sizeBytes !== null) {
+    const size = document.createElement("span");
+    size.className = "file-size";
+    size.textContent = formatSize(node.sizeBytes);
+    link.append(size);
+  }
+  item.append(link);
+  return item;
+}
+
+function renderBrowseFailure(
+  root: HTMLElement,
+  api: GuestApi,
+  frames: readonly BrowserFrame[],
+  cause: unknown,
+): void {
+  if (cause instanceof GuestApiError && cause.status === 401) {
+    renderLogin(root, api, "Your session ended. Enter the current PIN.");
+    return;
+  }
+
+  const heading = document.createElement("h1");
+  heading.tabIndex = -1;
+  heading.textContent = "Could not load files";
+  const error = document.createElement("p");
+  error.setAttribute("role", "alert");
+  error.className = "error";
+  error.textContent = browseErrorMessage(cause);
+  const retry = document.createElement("button");
+  retry.type = "button";
+  retry.textContent = "Try again";
+  retry.addEventListener("click", () => {
+    void loadFrame(root, api, frames.length === 0 ? [ROOT_FRAME] : frames);
+  });
+
+  root.replaceChildren(heading, error, retry);
+  heading.focus();
+}
+
+function browseErrorMessage(cause: unknown): string {
+  if (cause instanceof GuestApiError && cause.status === 404) {
+    return "That item is no longer available.";
+  }
+  if (cause instanceof GuestApiError && cause.status === 503) {
+    return "The sharing phone is busy. Try again shortly.";
+  }
+  return "Check your connection to the sharing phone and try again.";
+}
+
+function appendDirectionalText(parent: HTMLElement, value: string): void {
+  const text = document.createElement("bdi");
+  text.dir = "auto";
+  text.textContent = value;
+  parent.append(text);
+}
+
+function formatSize(sizeBytes: number): string {
+  if (sizeBytes < 1_024) {
+    return `${sizeBytes} B`;
+  }
+  if (sizeBytes < 1_024 * 1_024) {
+    return `${(sizeBytes / 1_024).toFixed(1)} KB`;
+  }
+  if (sizeBytes < 1_024 * 1_024 * 1_024) {
+    return `${(sizeBytes / (1_024 * 1_024)).toFixed(1)} MB`;
+  }
+  return `${(sizeBytes / (1_024 * 1_024 * 1_024)).toFixed(1)} GB`;
 }
 
 function setBusy(

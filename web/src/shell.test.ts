@@ -1,12 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { GuestApiError } from "./api";
+import type { GuestListing } from "./api";
 import { mountGuestApp } from "./shell";
 
 describe("guest login", () => {
   it("renders a six digit one-time-code form", () => {
     const root = document.createElement("main");
 
-    mountGuestApp(root, { login: vi.fn() });
+    mountGuestApp(root, api());
 
     const input = root.querySelector<HTMLInputElement>("#pin");
     expect(root.querySelector("h1")?.textContent).toBe("Hold My Files");
@@ -22,7 +23,7 @@ describe("guest login", () => {
     const root = document.createElement("main");
     document.body.append(root);
     const login = vi.fn();
-    mountGuestApp(root, { login });
+    mountGuestApp(root, api({ login }));
     const input = requiredInput(root);
     input.value = "42";
 
@@ -38,7 +39,7 @@ describe("guest login", () => {
     const root = document.createElement("main");
     document.body.append(root);
     const login = vi.fn(async () => undefined);
-    mountGuestApp(root, { login });
+    mountGuestApp(root, api({ login }));
     const input = requiredInput(root);
     input.value = "000042";
 
@@ -58,7 +59,7 @@ describe("guest login", () => {
     const login = vi.fn(async () => {
       throw new GuestApiError(401);
     });
-    mountGuestApp(root, { login });
+    mountGuestApp(root, api({ login }));
     const input = requiredInput(root);
     input.value = "000042";
 
@@ -84,7 +85,7 @@ describe("guest login", () => {
           finishLogin = resolve;
         }),
     );
-    mountGuestApp(root, { login });
+    mountGuestApp(root, api({ login }));
     const input = requiredInput(root);
     input.value = "123456";
 
@@ -97,7 +98,117 @@ describe("guest login", () => {
       expect(root.querySelector("h1")?.textContent).toBe("Shared files"),
     );
   });
+
+  it("renders directories and direct file download links as text", async () => {
+    const root = document.createElement("main");
+    const dangerousName = "<img src=x onerror=alert(1)>";
+    const roots = vi.fn(async () =>
+      listing(
+        {
+          handle: "a".repeat(32),
+          name: dangerousName,
+          kind: "directory",
+          sizeBytes: null,
+        },
+        {
+          handle: "b".repeat(32),
+          name: "notes.txt",
+          kind: "file",
+          sizeBytes: 12,
+        },
+      ),
+    );
+    mountGuestApp(root, api({ roots }));
+    requiredInput(root).value = "123456";
+
+    submit(root);
+
+    await vi.waitFor(() => expect(root.querySelectorAll(".node-row")).toHaveLength(2));
+    expect(root.querySelector("img")).toBeNull();
+    expect(root.textContent).toContain(dangerousName);
+    expect(root.querySelector("bdi")?.getAttribute("dir")).toBe("auto");
+    const download = root.querySelector<HTMLAnchorElement>("a[download]");
+    expect(download?.getAttribute("href")).toBe(`/api/v1/files/${"b".repeat(32)}`);
+  });
+
+  it("opens a directory and builds an in-memory breadcrumb", async () => {
+    const root = document.createElement("main");
+    const folderHandle = "c".repeat(32);
+    const roots = vi.fn(async () =>
+      listing({
+        handle: folderHandle,
+        name: "Photos",
+        kind: "directory",
+        sizeBytes: null,
+      }),
+    );
+    const list = vi.fn(async () => listing());
+    mountGuestApp(root, api({ roots, list }));
+    requiredInput(root).value = "123456";
+    submit(root);
+    await vi.waitFor(() => expect(root.querySelector(".node-directory")).not.toBeNull());
+
+    root.querySelector<HTMLButtonElement>(".node-directory")?.click();
+
+    await vi.waitFor(() => expect(list).toHaveBeenCalledWith(folderHandle));
+    await vi.waitFor(() => expect(root.querySelector("h1")?.textContent).toBe("Photos"));
+    expect(root.querySelector("nav")?.getAttribute("aria-label")).toBe("Breadcrumb");
+    expect(window.location.pathname).not.toContain(folderHandle);
+  });
+
+  it("announces truncated directories", async () => {
+    const root = document.createElement("main");
+    const roots = vi.fn(async () => ({ nodes: [], truncated: true }));
+    mountGuestApp(root, api({ roots }));
+    requiredInput(root).value = "123456";
+
+    submit(root);
+
+    await vi.waitFor(() =>
+      expect(root.querySelector("[role='status']")?.textContent).toContain(
+        "first 1,000 items",
+      ),
+    );
+  });
+
+  it("returns to login when the session expires", async () => {
+    const root = document.createElement("main");
+    const roots = vi.fn(async () => {
+      throw new GuestApiError(401);
+    });
+    mountGuestApp(root, api({ roots }));
+    requiredInput(root).value = "123456";
+
+    submit(root);
+
+    await vi.waitFor(() =>
+      expect(root.querySelector("[role='alert']")?.textContent).toBe(
+        "Your session ended. Enter the current PIN.",
+      ),
+    );
+  });
 });
+
+interface ApiStub {
+  login(pin: string): Promise<void>;
+  roots(): Promise<GuestListing>;
+  list(handle: string): Promise<GuestListing>;
+}
+
+function api(overrides: Partial<ApiStub> = {}): ApiStub {
+  return {
+    login: async () => undefined,
+    roots: async () => listing(),
+    list: async () => listing(),
+    ...overrides,
+  };
+}
+
+function listing(
+  ...nodes: GuestListing["nodes"]
+): GuestListing {
+  return { nodes, truncated: false };
+}
 
 function requiredInput(root: HTMLElement): HTMLInputElement {
   const input = root.querySelector<HTMLInputElement>("#pin");
