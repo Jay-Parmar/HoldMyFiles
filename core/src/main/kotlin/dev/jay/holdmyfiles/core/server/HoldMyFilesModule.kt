@@ -76,19 +76,22 @@ private val SafeErrors = createApplicationPlugin("SafeErrors") {
 private val SafeFallbackPhase = PipelinePhase("SafeFallback")
 
 class ServerDependencies(
-    val allowedAuthority: String = "localhost:80",
+    val authoritySource: AuthoritySource = StaticAuthoritySource("localhost:80"),
     val authenticator: SessionAuthenticator? = null,
     val browser: GuestBrowser? = null,
     val guestAssets: GuestWebAssets? = null,
 ) {
-    init {
-        require(allowedAuthority.isNotBlank() && allowedAuthority.length <= 255)
-        require(allowedAuthority.none { character ->
-            character.isWhitespace() || character.isISOControl() || character == '/'
-        })
-    }
-
-    val allowedOrigin: String = "http://$allowedAuthority"
+    constructor(
+        allowedAuthority: String,
+        authenticator: SessionAuthenticator? = null,
+        browser: GuestBrowser? = null,
+        guestAssets: GuestWebAssets? = null,
+    ) : this(
+        authoritySource = StaticAuthoritySource(allowedAuthority),
+        authenticator = authenticator,
+        browser = browser,
+        guestAssets = guestAssets,
+    )
 }
 
 fun Application.holdMyFilesModule(
@@ -100,7 +103,12 @@ fun Application.holdMyFilesModule(
     install(SecurityHeaders)
     install(SafeErrors)
     intercept(ApplicationCallPipeline.Plugins) {
-        if (context.request.headers.getAll(HttpHeaders.Host) != listOf(dependencies.allowedAuthority)) {
+        val allowedAuthority = dependencies.authoritySource.current()
+            ?.takeIf(String::isSafeAuthority)
+        if (
+            allowedAuthority == null ||
+            context.request.headers.getAll(HttpHeaders.Host) != listOf(allowedAuthority)
+        ) {
             context.respond(
                 MISDIRECTED_REQUEST,
                 ApiError("unexpected_host", "Use the address shown in the app."),
@@ -141,9 +149,11 @@ fun Application.holdMyFilesModule(
 
         dependencies.authenticator?.let { authenticator ->
             post("/api/v1/session") {
+                val allowedOrigin = dependencies.expectedOrigin()
                 if (
+                    allowedOrigin == null ||
                     call.request.headers.getAll(HttpHeaders.Origin) !=
-                    listOf(dependencies.allowedOrigin)
+                    listOf(allowedOrigin)
                 ) {
                     call.respond(
                         HttpStatusCode.Forbidden,
@@ -248,9 +258,11 @@ fun Application.holdMyFilesModule(
             }
 
             delete("/api/v1/session") {
+                val allowedOrigin = dependencies.expectedOrigin()
                 if (
+                    allowedOrigin == null ||
                     call.request.headers.getAll(HttpHeaders.Origin) !=
-                    listOf(dependencies.allowedOrigin)
+                    listOf(allowedOrigin)
                 ) {
                     call.respond(
                         HttpStatusCode.Forbidden,
@@ -305,6 +317,11 @@ fun Application.holdMyFilesModule(
         }
     }
 }
+
+private fun ServerDependencies.expectedOrigin(): String? =
+    authoritySource.current()
+        ?.takeIf(String::isSafeAuthority)
+        ?.let { authority -> "http://$authority" }
 
 private suspend fun ApplicationCall.respondUnhandledRoute() {
     val allowedMethods = request.path().allowedMethods()
