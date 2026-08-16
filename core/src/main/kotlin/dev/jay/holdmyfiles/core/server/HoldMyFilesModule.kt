@@ -12,6 +12,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationCall
+import io.ktor.server.application.ApplicationCallPipeline
 import io.ktor.server.application.createApplicationPlugin
 import io.ktor.server.application.install
 import io.ktor.server.request.contentType
@@ -75,20 +76,23 @@ fun Application.holdMyFilesModule(
         json()
     }
     install(SecurityHeaders)
+    intercept(ApplicationCallPipeline.Plugins) {
+        if (context.request.headers.getAll(HttpHeaders.Host) != listOf(dependencies.allowedAuthority)) {
+            context.respond(
+                MISDIRECTED_REQUEST,
+                ApiError("unexpected_host", "Use the address shown in the app."),
+            )
+            finish()
+        }
+    }
 
     routing {
         get("/api/v1/health") {
-            if (call.rejectUnexpectedHost(dependencies.allowedAuthority)) {
-                return@get
-            }
             call.respond(HealthResponse())
         }
 
         dependencies.authenticator?.let { authenticator ->
             post("/api/v1/session") {
-                if (call.rejectUnexpectedHost(dependencies.allowedAuthority)) {
-                    return@post
-                }
                 if (call.request.headers[HttpHeaders.Origin] != dependencies.allowedOrigin) {
                     call.respond(
                         HttpStatusCode.Forbidden,
@@ -193,9 +197,6 @@ fun Application.holdMyFilesModule(
             }
 
             delete("/api/v1/session") {
-                if (call.rejectUnexpectedHost(dependencies.allowedAuthority)) {
-                    return@delete
-                }
                 if (call.request.headers[HttpHeaders.Origin] != dependencies.allowedOrigin) {
                     call.respond(
                         HttpStatusCode.Forbidden,
@@ -217,9 +218,6 @@ fun Application.holdMyFilesModule(
         val browser = dependencies.browser
         if (authenticator != null && browser != null) {
             get("/api/v1/shares") {
-                if (call.rejectUnexpectedHost(dependencies.allowedAuthority)) {
-                    return@get
-                }
                 if (!call.requireSession(authenticator)) {
                     return@get
                 }
@@ -228,9 +226,6 @@ fun Application.holdMyFilesModule(
             }
 
             get("/api/v1/nodes/{handle}") {
-                if (call.rejectUnexpectedHost(dependencies.allowedAuthority)) {
-                    return@get
-                }
                 if (!call.requireSession(authenticator)) {
                     return@get
                 }
@@ -239,9 +234,6 @@ fun Application.holdMyFilesModule(
             }
 
             head("/api/v1/files/{handle}") {
-                if (call.rejectUnexpectedHost(dependencies.allowedAuthority)) {
-                    return@head
-                }
                 if (!call.requireSession(authenticator)) {
                     return@head
                 }
@@ -250,9 +242,6 @@ fun Application.holdMyFilesModule(
             }
 
             get("/api/v1/files/{handle}") {
-                if (call.rejectUnexpectedHost(dependencies.allowedAuthority)) {
-                    return@get
-                }
                 if (!call.requireSession(authenticator)) {
                     return@get
                 }
@@ -387,19 +376,6 @@ private fun GuestListing.toResponse(): GuestListingResponse = GuestListingRespon
     },
     truncated = truncated,
 )
-
-private suspend fun ApplicationCall.rejectUnexpectedHost(allowedAuthority: String): Boolean {
-    val requestAuthorities = request.headers.getAll(HttpHeaders.Host)
-    if (requestAuthorities == listOf(allowedAuthority)) {
-        return false
-    }
-
-    respond(
-        MISDIRECTED_REQUEST,
-        ApiError("unexpected_host", "Use the address shown in the app."),
-    )
-    return true
-}
 
 private fun Long.toRetryAfterSeconds(): Long = this / 1_000 + if (this % 1_000 == 0L) 0 else 1
 
