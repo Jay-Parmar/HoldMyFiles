@@ -58,9 +58,70 @@ class SessionRegistryTest {
         assertFalse(registry.validate(second.encodedValue()))
     }
 
+    @Test
+    fun `successful validation refreshes idle expiry`() {
+        val clock = MutableClock()
+        val registry = SessionRegistry(
+            random = sequentialBytes(),
+            clock = clock,
+            idleTimeoutMillis = 5,
+            absoluteTimeoutMillis = 20,
+        )
+        val session = registry.issue()
+
+        clock.nowMillis = 4
+        assertTrue(registry.validate(session.encodedValue()))
+        clock.nowMillis = 8
+        assertTrue(registry.validate(session.encodedValue()))
+        clock.nowMillis = 13
+        assertFalse(registry.validate(session.encodedValue()))
+    }
+
+    @Test
+    fun `absolute expiry is not refreshed by validation`() {
+        val clock = MutableClock()
+        val registry = SessionRegistry(
+            random = sequentialBytes(),
+            clock = clock,
+            idleTimeoutMillis = 5,
+            absoluteTimeoutMillis = 10,
+        )
+        val session = registry.issue()
+
+        clock.nowMillis = 4
+        assertTrue(registry.validate(session.encodedValue()))
+        clock.nowMillis = 8
+        assertTrue(registry.validate(session.encodedValue()))
+        clock.nowMillis = 10
+        assertFalse(registry.validate(session.encodedValue()))
+    }
+
+    @Test
+    fun `backward clock movement invalidates the session`() {
+        val clock = MutableClock(nowMillis = 100)
+        val registry = SessionRegistry(
+            random = sequentialBytes(),
+            clock = clock,
+            idleTimeoutMillis = 5,
+            absoluteTimeoutMillis = 20,
+        )
+        val session = registry.issue()
+
+        clock.nowMillis = 99
+        assertFalse(registry.validate(session.encodedValue()))
+        clock.nowMillis = 100
+        assertFalse(registry.validate(session.encodedValue()))
+    }
+
     private fun sequentialBytes(): RandomByteSource = RandomByteSource { destination ->
         destination.indices.forEach { index ->
             destination[index] = index.toByte()
         }
+    }
+
+    private class MutableClock(
+        var nowMillis: Long = 0,
+    ) : MonotonicClock {
+        override fun nowMillis(): Long = nowMillis
     }
 }
