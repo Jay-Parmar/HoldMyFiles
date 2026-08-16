@@ -6,6 +6,7 @@
 - Android SDK Platform 37
 - Android SDK Build Tools 36.0.0 or newer
 - Android SDK Platform Tools
+- Node.js 24
 - A physical Android 8.0 or newer device for network acceptance tests
 
 Android Studio is optional if the command-line tools are configured.
@@ -33,6 +34,16 @@ The full local gate is:
 ```powershell
 .\gradlew.bat testDebugUnitTest assembleDebug lintDebug
 ```
+
+The guest client gate is:
+
+```powershell
+cd web
+npm ci
+npm run check
+```
+
+The web build refreshes the fixed assets under `app/src/main/assets/web`. Commit those generated files with their TypeScript source.
 
 ## Physical device loop
 

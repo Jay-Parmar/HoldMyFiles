@@ -21,6 +21,7 @@ The owner chooses folders through Android's system picker, starts sharing, and g
 - [Security test plan](docs/security-testing.md)
 - [Development roadmap](docs/roadmap.md)
 - [Development setup](docs/development.md)
+- [Guest client design](docs/guest-client.md)
 
 ## Project status
 
