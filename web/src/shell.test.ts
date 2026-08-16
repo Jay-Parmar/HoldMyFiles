@@ -187,12 +187,29 @@ describe("guest login", () => {
       ),
     );
   });
+
+  it("leaves the session and clears browser navigation", async () => {
+    const root = document.createElement("main");
+    const logout = vi.fn(async () => undefined);
+    mountGuestApp(root, api({ logout }));
+    requiredInput(root).value = "123456";
+    submit(root);
+    await vi.waitFor(() => expect(root.querySelector(".leave-session")).not.toBeNull());
+
+    root.querySelector<HTMLButtonElement>(".leave-session")?.click();
+
+    await vi.waitFor(() => expect(logout).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(root.querySelector("#pin")).not.toBeNull());
+    expect(root.textContent).toContain("You left the sharing session.");
+    expect(root.querySelector("nav")).toBeNull();
+  });
 });
 
 interface ApiStub {
   login(pin: string): Promise<void>;
   roots(): Promise<GuestListing>;
   list(handle: string): Promise<GuestListing>;
+  logout(): Promise<void>;
 }
 
 function api(overrides: Partial<ApiStub> = {}): ApiStub {
@@ -200,6 +217,7 @@ function api(overrides: Partial<ApiStub> = {}): ApiStub {
     login: async () => undefined,
     roots: async () => listing(),
     list: async () => listing(),
+    logout: async () => undefined,
     ...overrides,
   };
 }

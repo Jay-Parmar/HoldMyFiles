@@ -52,6 +52,10 @@ export class HttpGuestApi {
     return this.loadListing(`/api/v1/nodes/${handle}`);
   }
 
+  async logout(): Promise<void> {
+    await this.request("/api/v1/session", { method: "DELETE" });
+  }
+
   private async loadListing(path: string): Promise<GuestListing> {
     const response = await this.request(path, { method: "GET" });
     let value: unknown;

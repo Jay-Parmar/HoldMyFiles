@@ -135,6 +135,28 @@ input:disabled {
   list-style: none;
 }
 
+.browser-heading {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.browser-heading h1 {
+  min-width: 0;
+}
+
+.leave-session {
+  flex: none;
+  color: #1d4ed8;
+  background: #dbeafe;
+}
+
+.leave-session:hover:not(:disabled) {
+  color: #fff;
+  background: #1e40af;
+}
+
 .breadcrumbs li:not(:last-child)::after {
   margin-inline-start: 0.35rem;
   content: "/";
@@ -237,5 +259,10 @@ h1 bdi,
 
   .card {
     border-radius: 1rem;
+  }
+
+  .browser-heading {
+    align-items: stretch;
+    flex-direction: column;
   }
 }

@@ -127,3 +127,23 @@ describe("guest API browsing", () => {
     await expect(api.roots()).rejects.toMatchObject({ status: 502 });
   });
 });
+
+describe("guest API logout", () => {
+  it("deletes the current same-origin session", async () => {
+    const fetchStub = vi.fn<typeof fetch>(async () => new Response(null, { status: 204 }));
+    const api = new HttpGuestApi(fetchStub);
+
+    await api.logout();
+
+    expect(fetchStub).toHaveBeenCalledWith(
+      "/api/v1/session",
+      expect.objectContaining({
+        method: "DELETE",
+        credentials: "same-origin",
+        mode: "same-origin",
+        cache: "no-store",
+        redirect: "error",
+      }),
+    );
+  });
+});

@@ -5,6 +5,7 @@ interface GuestApi {
   login(pin: string): Promise<void>;
   roots(): Promise<GuestListing>;
   list(handle: string): Promise<GuestListing>;
+  logout(): Promise<void>;
 }
 
 interface BrowserFrame {
@@ -18,7 +19,12 @@ export function mountGuestApp(root: HTMLElement, api: GuestApi): void {
   renderLogin(root, api);
 }
 
-function renderLogin(root: HTMLElement, api: GuestApi, initialError?: string): void {
+function renderLogin(
+  root: HTMLElement,
+  api: GuestApi,
+  initialError?: string,
+  initialStatus?: string,
+): void {
   const section = document.createElement("section");
   section.className = "card";
   section.setAttribute("aria-labelledby", "login-title");
@@ -78,6 +84,10 @@ function renderLogin(root: HTMLElement, api: GuestApi, initialError?: string): v
   input.focus();
   if (initialError !== undefined) {
     showError(error, initialError);
+  }
+  if (initialStatus !== undefined) {
+    status.textContent = initialStatus;
+    status.hidden = false;
   }
 
   let submitting = false;
@@ -165,6 +175,25 @@ function renderListing(
   const heading = document.createElement("h1");
   heading.tabIndex = -1;
   appendDirectionalText(heading, frame.name);
+  const headingRow = document.createElement("div");
+  headingRow.className = "browser-heading";
+  const leaveButton = document.createElement("button");
+  leaveButton.type = "button";
+  leaveButton.className = "leave-session";
+  leaveButton.textContent = "Leave session";
+  leaveButton.addEventListener("click", () => {
+    leaveButton.disabled = true;
+    leaveButton.textContent = "Leaving";
+    void api
+      .logout()
+      .then(() => {
+        renderLogin(root, api, undefined, "You left the sharing session.");
+      })
+      .catch((cause: unknown) => {
+        renderBrowseFailure(root, api, frames, cause);
+      });
+  });
+  headingRow.append(heading, leaveButton);
 
   const list = document.createElement("ul");
   list.className = "node-list";
@@ -172,7 +201,7 @@ function renderListing(
     list.append(createNodeRow(root, api, frames, node));
   }
 
-  const content: Node[] = [breadcrumbs, heading];
+  const content: Node[] = [breadcrumbs, headingRow];
   if (listing.nodes.length === 0) {
     const empty = document.createElement("p");
     empty.className = "empty-state";
