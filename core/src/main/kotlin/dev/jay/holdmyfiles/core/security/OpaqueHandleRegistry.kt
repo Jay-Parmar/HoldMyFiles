@@ -38,6 +38,10 @@ class OpaqueHandleRegistry<T : Any>(
 
     @Synchronized
     fun resolve(encodedHandle: String): T? {
+        if (!encodedHandle.isUnpaddedBase64Url(ENCODED_HANDLE_LENGTH)) {
+            return null
+        }
+
         val entry = entries[encodedHandle] ?: return null
         if (entry.isExpired(clock.nowMillis(), lifetimeMillis)) {
             entries.remove(encodedHandle)
@@ -54,6 +58,7 @@ class OpaqueHandleRegistry<T : Any>(
 
     private companion object {
         const val HANDLE_BYTES = 24
+        const val ENCODED_HANDLE_LENGTH = 32
         const val MAX_GENERATION_ATTEMPTS = 8
         val ENCODER: Base64.Encoder = Base64.getUrlEncoder().withoutPadding()
     }

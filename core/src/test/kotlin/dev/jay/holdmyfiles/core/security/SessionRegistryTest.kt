@@ -166,6 +166,15 @@ class SessionRegistryTest {
         assertFalse(registry.validate(session.encodedValue()))
     }
 
+    @Test
+    fun `rejects malformed session values`() {
+        val registry = SessionRegistry(sequentialBytes())
+
+        assertFalse(registry.validate("a".repeat(10_000)))
+        assertFalse(registry.validate("!".repeat(43)))
+        assertFalse(registry.validate("a".repeat(42)))
+    }
+
     private fun sequentialBytes(): RandomByteSource = RandomByteSource { destination ->
         destination.indices.forEach { index ->
             destination[index] = index.toByte()
