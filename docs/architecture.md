@@ -154,7 +154,7 @@ Guest opens local URL
 ```text
 Guest requests a file handle
   -> session is validated
-  -> handle signature and expiry are validated
+  -> handle lookup and expiry are validated
   -> share is checked again
   -> storage gateway opens an InputStream
   -> server streams bytes to the response
@@ -169,7 +169,7 @@ Owner taps Stop in app or notification
   -> server stops accepting connections
   -> active calls are cancelled
   -> server socket closes
-  -> sessions and handle keys are discarded
+  -> sessions and handle entries are discarded
   -> foreground notification is removed
   -> state changes to STOPPED
 ```
