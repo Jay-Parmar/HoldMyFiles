@@ -35,6 +35,7 @@ class ServerReadinessTest {
         assertEquals("nosniff", response.headers["X-Content-Type-Options"])
         assertEquals("no-referrer", response.headers["Referrer-Policy"])
         assertEquals("DENY", response.headers["X-Frame-Options"])
+        assertEquals("same-origin", response.headers["Cross-Origin-Resource-Policy"])
         assertTrue(
             response.headers["Content-Security-Policy"]
                 .orEmpty()

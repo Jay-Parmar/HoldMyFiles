@@ -2,6 +2,10 @@ package dev.jay.holdmyfiles.core.server
 
 import dev.jay.holdmyfiles.core.security.LoginResult
 import dev.jay.holdmyfiles.core.security.SessionAuthenticator
+import dev.jay.holdmyfiles.core.storage.BrowseOutcome
+import dev.jay.holdmyfiles.core.storage.GuestBrowser
+import dev.jay.holdmyfiles.core.storage.GuestListing
+import dev.jay.holdmyfiles.core.storage.StorageNodeKind
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -35,6 +39,7 @@ private val SecurityHeaders = createApplicationPlugin("SecurityHeaders") {
             append("X-Content-Type-Options", "nosniff")
             append("Referrer-Policy", "no-referrer")
             append("X-Frame-Options", "DENY")
+            append("Cross-Origin-Resource-Policy", "same-origin")
             append(
                 "Content-Security-Policy",
                 "default-src 'self'; object-src 'none'; frame-ancestors 'none'; " +
@@ -47,6 +52,7 @@ private val SecurityHeaders = createApplicationPlugin("SecurityHeaders") {
 class ServerDependencies(
     val allowedAuthority: String = "localhost:80",
     val authenticator: SessionAuthenticator? = null,
+    val browser: GuestBrowser? = null,
 ) {
     init {
         require(allowedAuthority.isNotBlank() && allowedAuthority.length <= 255)
@@ -202,8 +208,97 @@ fun Application.holdMyFilesModule(
                 call.respond(HttpStatusCode.NoContent)
             }
         }
+
+        val authenticator = dependencies.authenticator
+        val browser = dependencies.browser
+        if (authenticator != null && browser != null) {
+            get("/api/v1/shares") {
+                if (call.rejectUnexpectedHost(dependencies.allowedAuthority)) {
+                    return@get
+                }
+                if (!call.requireSession(authenticator)) {
+                    return@get
+                }
+
+                call.respondListing(browser.roots())
+            }
+
+            get("/api/v1/nodes/{handle}") {
+                if (call.rejectUnexpectedHost(dependencies.allowedAuthority)) {
+                    return@get
+                }
+                if (!call.requireSession(authenticator)) {
+                    return@get
+                }
+
+                call.respondListing(browser.list(call.parameters["handle"].orEmpty()))
+            }
+        }
     }
 }
+
+private suspend fun ApplicationCall.requireSession(
+    authenticator: SessionAuthenticator,
+): Boolean {
+    val encodedSession = request.cookies[SESSION_COOKIE]
+    if (encodedSession != null && authenticator.validate(encodedSession)) {
+        return true
+    }
+
+    respond(
+        HttpStatusCode.Unauthorized,
+        ApiError("session_required", "Enter the current PIN to continue."),
+    )
+    return false
+}
+
+private suspend fun ApplicationCall.respondListing(
+    outcome: BrowseOutcome<GuestListing>,
+) {
+    when (outcome) {
+        is BrowseOutcome.Ok -> respond(outcome.value.toResponse())
+        BrowseOutcome.InvalidHandle,
+        BrowseOutcome.StaleHandle,
+        BrowseOutcome.Missing,
+        -> respond(
+            HttpStatusCode.NotFound,
+            ApiError("item_unavailable", "This item is no longer available."),
+        )
+
+        BrowseOutcome.WrongKind -> respond(
+            HttpStatusCode.BadRequest,
+            ApiError("wrong_item_type", "This item cannot be opened as a folder."),
+        )
+
+        BrowseOutcome.Busy -> {
+            response.header(HttpHeaders.RetryAfter, "1")
+            respond(
+                HttpStatusCode.ServiceUnavailable,
+                ApiError("server_busy", "Try again shortly."),
+            )
+        }
+
+        BrowseOutcome.Unavailable -> respond(
+            HttpStatusCode.ServiceUnavailable,
+            ApiError("storage_unavailable", "Storage is temporarily unavailable."),
+        )
+    }
+}
+
+private fun GuestListing.toResponse(): GuestListingResponse = GuestListingResponse(
+    nodes = nodes.map { node ->
+        GuestNodeResponse(
+            handle = node.handle.encodedValue(),
+            name = node.displayName,
+            kind = when (node.kind) {
+                StorageNodeKind.Directory -> "directory"
+                StorageNodeKind.File -> "file"
+            },
+            sizeBytes = node.sizeBytes,
+        )
+    },
+    truncated = truncated,
+)
 
 private suspend fun ApplicationCall.rejectUnexpectedHost(allowedAuthority: String): Boolean {
     val requestAuthorities = request.headers.getAll(HttpHeaders.Host)
@@ -239,6 +334,20 @@ private class LoginRequest(
 private data class ApiError(
     val code: String,
     val message: String,
+)
+
+@Serializable
+private data class GuestListingResponse(
+    val nodes: List<GuestNodeResponse>,
+    val truncated: Boolean,
+)
+
+@Serializable
+private data class GuestNodeResponse(
+    val handle: String,
+    val name: String,
+    val kind: String,
+    val sizeBytes: Long?,
 )
 
 @Serializable
