@@ -5,6 +5,7 @@ import dev.jay.holdmyfiles.core.security.SessionAuthenticator
 import dev.jay.holdmyfiles.core.storage.BrowseOutcome
 import dev.jay.holdmyfiles.core.storage.GuestBrowser
 import dev.jay.holdmyfiles.core.storage.GuestListing
+import dev.jay.holdmyfiles.core.storage.OpenedFile
 import dev.jay.holdmyfiles.core.storage.StorageNodeKind
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
@@ -16,9 +17,11 @@ import io.ktor.server.application.install
 import io.ktor.server.request.contentType
 import io.ktor.server.request.receiveChannel
 import io.ktor.server.response.respond
+import io.ktor.server.response.respondBytesWriter
 import io.ktor.server.response.header
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
+import io.ktor.server.routing.head
 import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
@@ -233,6 +236,17 @@ fun Application.holdMyFilesModule(
 
                 call.respondListing(browser.list(call.parameters["handle"].orEmpty()))
             }
+
+            head("/api/v1/files/{handle}") {
+                if (call.rejectUnexpectedHost(dependencies.allowedAuthority)) {
+                    return@head
+                }
+                if (!call.requireSession(authenticator)) {
+                    return@head
+                }
+
+                call.respondFileMetadata(browser.open(call.parameters["handle"].orEmpty()))
+            }
         }
     }
 }
@@ -268,6 +282,55 @@ private suspend fun ApplicationCall.respondListing(
         BrowseOutcome.WrongKind -> respond(
             HttpStatusCode.BadRequest,
             ApiError("wrong_item_type", "This item cannot be opened as a folder."),
+        )
+
+        BrowseOutcome.Busy -> {
+            response.header(HttpHeaders.RetryAfter, "1")
+            respond(
+                HttpStatusCode.ServiceUnavailable,
+                ApiError("server_busy", "Try again shortly."),
+            )
+        }
+
+        BrowseOutcome.Unavailable -> respond(
+            HttpStatusCode.ServiceUnavailable,
+            ApiError("storage_unavailable", "Storage is temporarily unavailable."),
+        )
+    }
+}
+
+private suspend fun ApplicationCall.respondFileMetadata(
+    outcome: BrowseOutcome<OpenedFile>,
+) {
+    when (outcome) {
+        is BrowseOutcome.Ok -> {
+            val openedFile = outcome.value
+            try {
+                response.header(
+                    HttpHeaders.ContentDisposition,
+                    attachmentContentDisposition(openedFile.displayName),
+                )
+                respondBytesWriter(
+                    contentType = ContentType.Application.OctetStream,
+                    status = HttpStatusCode.OK,
+                    contentLength = openedFile.sizeBytes,
+                ) {}
+            } finally {
+                openedFile.close()
+            }
+        }
+
+        BrowseOutcome.InvalidHandle,
+        BrowseOutcome.StaleHandle,
+        BrowseOutcome.Missing,
+        -> respond(
+            HttpStatusCode.NotFound,
+            ApiError("item_unavailable", "This item is no longer available."),
+        )
+
+        BrowseOutcome.WrongKind -> respond(
+            HttpStatusCode.BadRequest,
+            ApiError("wrong_item_type", "This item cannot be downloaded."),
         )
 
         BrowseOutcome.Busy -> {
