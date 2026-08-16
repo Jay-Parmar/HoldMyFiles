@@ -16,7 +16,7 @@ Exit check: a new contributor can explain the scope, request flow, and security 
 
 - [x] Add Gradle wrapper and version catalog
 - [x] Add the Android application module
-- [x] Add a minimal Compose screen
+- [ ] Add a minimal Compose screen
 - [ ] Add CI for unit tests and debug APK builds
 
 Test loop:
