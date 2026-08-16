@@ -14,8 +14,11 @@ import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.ApplicationCallPipeline
 import io.ktor.server.application.createApplicationPlugin
+import io.ktor.server.application.hooks.CallFailed
+import io.ktor.server.application.isHandled
 import io.ktor.server.application.install
 import io.ktor.server.request.contentType
+import io.ktor.server.request.path
 import io.ktor.server.request.receiveChannel
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondBytesWriter
@@ -30,8 +33,10 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
+import kotlinx.coroutines.CancellationException
 import io.ktor.utils.io.readRemaining
 import io.ktor.utils.io.writeFully
+import io.ktor.util.pipeline.PipelinePhase
 import kotlinx.io.readByteArray
 import java.nio.ByteBuffer
 import java.nio.charset.CharacterCodingException
@@ -53,6 +58,20 @@ private val SecurityHeaders = createApplicationPlugin("SecurityHeaders") {
         }
     }
 }
+
+private val SafeErrors = createApplicationPlugin("SafeErrors") {
+    on(CallFailed) { call, cause ->
+        if (cause is CancellationException) {
+            throw cause
+        }
+        call.respond(
+            HttpStatusCode.InternalServerError,
+            ApiError("internal_error", "The server could not complete this request."),
+        )
+    }
+}
+
+private val SafeFallbackPhase = PipelinePhase("SafeFallback")
 
 class ServerDependencies(
     val allowedAuthority: String = "localhost:80",
@@ -76,12 +95,20 @@ fun Application.holdMyFilesModule(
         json()
     }
     install(SecurityHeaders)
+    install(SafeErrors)
     intercept(ApplicationCallPipeline.Plugins) {
         if (context.request.headers.getAll(HttpHeaders.Host) != listOf(dependencies.allowedAuthority)) {
             context.respond(
                 MISDIRECTED_REQUEST,
                 ApiError("unexpected_host", "Use the address shown in the app."),
             )
+            finish()
+        }
+    }
+    insertPhaseBefore(ApplicationCallPipeline.Fallback, SafeFallbackPhase)
+    intercept(SafeFallbackPhase) {
+        if (!context.isHandled) {
+            context.respondUnhandledRoute()
             finish()
         }
     }
@@ -250,6 +277,40 @@ fun Application.holdMyFilesModule(
             }
         }
     }
+}
+
+private suspend fun ApplicationCall.respondUnhandledRoute() {
+    val allowedMethods = request.path().allowedMethods()
+    if (allowedMethods == null) {
+        respond(
+            HttpStatusCode.NotFound,
+            ApiError("route_not_found", "This route does not exist."),
+        )
+        return
+    }
+
+    response.header(HttpHeaders.Allow, allowedMethods)
+    respond(
+        HttpStatusCode.MethodNotAllowed,
+        ApiError("method_not_allowed", "This request method is not supported."),
+    )
+}
+
+private fun String.allowedMethods(): String? = when {
+    this == "/api/v1/health" -> "GET"
+    this == "/api/v1/session" -> "POST, DELETE"
+    this == "/api/v1/shares" -> "GET"
+    isSingleHandlePath("/api/v1/nodes/") -> "GET"
+    isSingleHandlePath("/api/v1/files/") -> "GET, HEAD"
+    else -> null
+}
+
+private fun String.isSingleHandlePath(prefix: String): Boolean {
+    if (!startsWith(prefix)) {
+        return false
+    }
+    val handle = removePrefix(prefix)
+    return handle.isNotEmpty() && '/' !in handle
 }
 
 private suspend fun ApplicationCall.requireSession(
