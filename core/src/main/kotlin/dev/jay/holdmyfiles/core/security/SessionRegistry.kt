@@ -7,30 +7,40 @@ class SessionRegistry(
     private val clock: MonotonicClock = SystemMonotonicClock,
     private val idleTimeoutMillis: Long = 15 * 60 * 1_000L,
     private val absoluteTimeoutMillis: Long = 8 * 60 * 60 * 1_000L,
+    private val capacity: Int = 256,
 ) {
     private val sessions = mutableMapOf<String, SessionRecord>()
 
     init {
         require(idleTimeoutMillis > 0)
         require(absoluteTimeoutMillis > 0)
+        require(capacity > 0)
     }
 
     @Synchronized
-    fun issue(): SessionToken {
-        var encoded: String
-        do {
+    fun issue(): SessionToken? {
+        val nowMillis = clock.nowMillis()
+        sessions.entries.removeAll { (_, session) ->
+            session.isExpired(nowMillis, idleTimeoutMillis, absoluteTimeoutMillis)
+        }
+        if (sessions.size >= capacity) {
+            return null
+        }
+
+        repeat(MAX_GENERATION_ATTEMPTS) {
             val bytes = ByteArray(TOKEN_BYTES)
             random.nextBytes(bytes)
-            encoded = ENCODER.encodeToString(bytes)
-        } while (sessions.containsKey(encoded))
+            val encoded = ENCODER.encodeToString(bytes)
+            if (!sessions.containsKey(encoded)) {
+                sessions[encoded] = SessionRecord(
+                    issuedAtMillis = nowMillis,
+                    lastSeenAtMillis = nowMillis,
+                )
+                return SessionToken(encoded)
+            }
+        }
 
-        val nowMillis = clock.nowMillis()
-        sessions[encoded] = SessionRecord(
-            issuedAtMillis = nowMillis,
-            lastSeenAtMillis = nowMillis,
-        )
-
-        return SessionToken(encoded)
+        return null
     }
 
     @Synchronized
@@ -59,6 +69,7 @@ class SessionRegistry(
 
     private companion object {
         const val TOKEN_BYTES = 32
+        const val MAX_GENERATION_ATTEMPTS = 8
         val ENCODER: Base64.Encoder = Base64.getUrlEncoder().withoutPadding()
     }
 

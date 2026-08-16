@@ -2,6 +2,8 @@ package dev.jay.holdmyfiles.core.security
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -10,7 +12,7 @@ class SessionRegistryTest {
     fun `issued session validates by its encoded token`() {
         val registry = SessionRegistry(sequentialBytes())
 
-        val session = registry.issue()
+        val session = requireSession(registry)
 
         assertTrue(registry.validate(session.encodedValue()))
         assertFalse(registry.validate("unknown"))
@@ -20,7 +22,7 @@ class SessionRegistryTest {
     fun `session token is unpadded base64url and redacted in text`() {
         val registry = SessionRegistry(sequentialBytes())
 
-        val session = registry.issue()
+        val session = requireSession(registry)
         val encoded = session.encodedValue()
 
         assertEquals(43, encoded.length)
@@ -34,8 +36,8 @@ class SessionRegistryTest {
         val registry = SessionRegistry(RandomByteSource { destination ->
             destination.fill(seed++.toByte())
         })
-        val first = registry.issue()
-        val second = registry.issue()
+        val first = requireSession(registry)
+        val second = requireSession(registry)
 
         registry.revoke(first.encodedValue())
 
@@ -49,8 +51,8 @@ class SessionRegistryTest {
         val registry = SessionRegistry(RandomByteSource { destination ->
             destination.fill(seed++.toByte())
         })
-        val first = registry.issue()
-        val second = registry.issue()
+        val first = requireSession(registry)
+        val second = requireSession(registry)
 
         registry.clear()
 
@@ -67,7 +69,7 @@ class SessionRegistryTest {
             idleTimeoutMillis = 5,
             absoluteTimeoutMillis = 20,
         )
-        val session = registry.issue()
+        val session = requireSession(registry)
 
         clock.nowMillis = 4
         assertTrue(registry.validate(session.encodedValue()))
@@ -86,7 +88,7 @@ class SessionRegistryTest {
             idleTimeoutMillis = 5,
             absoluteTimeoutMillis = 10,
         )
-        val session = registry.issue()
+        val session = requireSession(registry)
 
         clock.nowMillis = 4
         assertTrue(registry.validate(session.encodedValue()))
@@ -105,11 +107,62 @@ class SessionRegistryTest {
             idleTimeoutMillis = 5,
             absoluteTimeoutMillis = 20,
         )
-        val session = registry.issue()
+        val session = requireSession(registry)
 
         clock.nowMillis = 99
         assertFalse(registry.validate(session.encodedValue()))
         clock.nowMillis = 100
+        assertFalse(registry.validate(session.encodedValue()))
+    }
+
+    @Test
+    fun `refuses new sessions when capacity is full`() {
+        var seed = 0
+        val registry = SessionRegistry(
+            random = RandomByteSource { destination -> destination.fill(seed++.toByte()) },
+            capacity = 2,
+        )
+
+        assertNotNull(registry.issue())
+        assertNotNull(registry.issue())
+        assertNull(registry.issue())
+    }
+
+    @Test
+    fun `removes expired sessions before checking capacity`() {
+        var seed = 0
+        val clock = MutableClock()
+        val registry = SessionRegistry(
+            random = RandomByteSource { destination -> destination.fill(seed++.toByte()) },
+            clock = clock,
+            idleTimeoutMillis = 5,
+            absoluteTimeoutMillis = 20,
+            capacity = 1,
+        )
+        val expired = requireSession(registry)
+
+        clock.nowMillis = 5
+        val replacement = registry.issue()
+
+        assertNotNull(replacement)
+        assertFalse(registry.validate(expired.encodedValue()))
+    }
+
+    @Test
+    fun `random collisions do not refresh an existing session`() {
+        val clock = MutableClock()
+        val registry = SessionRegistry(
+            random = RandomByteSource { destination -> destination.fill(0) },
+            clock = clock,
+            idleTimeoutMillis = 5,
+            absoluteTimeoutMillis = 20,
+            capacity = 2,
+        )
+        val session = requireSession(registry)
+
+        clock.nowMillis = 4
+        assertNull(registry.issue())
+        clock.nowMillis = 5
         assertFalse(registry.validate(session.encodedValue()))
     }
 
@@ -118,6 +171,9 @@ class SessionRegistryTest {
             destination[index] = index.toByte()
         }
     }
+
+    private fun requireSession(registry: SessionRegistry): SessionToken =
+        requireNotNull(registry.issue())
 
     private class MutableClock(
         var nowMillis: Long = 0,
