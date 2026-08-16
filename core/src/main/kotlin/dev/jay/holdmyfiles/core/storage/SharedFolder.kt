@@ -49,6 +49,9 @@ class ShareSnapshot<R : Any>(
     init {
         require(this.shares.size <= MAX_CONFIGURED_SHARES)
         require(this.shares.map { share -> share.id }.distinct().size == this.shares.size)
+        require(
+            this.shares.map { share -> share.storageRoot }.distinct().size == this.shares.size,
+        )
     }
 
     override fun toString(): String =

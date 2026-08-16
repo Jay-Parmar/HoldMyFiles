@@ -95,6 +95,19 @@ class SharedFolderTest {
     }
 
     @Test
+    fun `snapshot rejects duplicate storage roots`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            ShareSnapshot(
+                ShareSetVersion(1),
+                listOf(
+                    SharedFolder(ShareId("one"), "One", true, TestRoot("same-root")),
+                    SharedFolder(ShareId("two"), "Two", false, TestRoot("same-root")),
+                ),
+            )
+        }
+    }
+
+    @Test
     fun `snapshot bounds configured shares`() {
         assertThrows(IllegalArgumentException::class.java) {
             ShareSnapshot(
