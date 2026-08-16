@@ -1,14 +1,12 @@
 package dev.jay.holdmyfiles.core.storage
 
-interface StorageNodeReference
-
 enum class StorageNodeKind {
     Directory,
     File,
 }
 
-class StorageNode(
-    val reference: StorageNodeReference,
+class StorageNode<N : Any>(
+    val reference: N,
     val displayName: String,
     val kind: StorageNodeKind,
     val sizeBytes: Long? = null,

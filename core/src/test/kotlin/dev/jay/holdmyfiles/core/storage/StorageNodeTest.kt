@@ -54,5 +54,5 @@ class StorageNodeTest {
         }
     }
 
-    private data object TestReference : StorageNodeReference
+    private data object TestReference
 }
