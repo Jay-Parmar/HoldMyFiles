@@ -13,13 +13,13 @@ class RunPinGeneratorTest {
 
         val pin = RunPinGenerator(random).generate()
 
-        assertEquals("000042", pin)
+        assertEquals("000042", pin.displayValue())
     }
 
     @Test
     fun `generates the highest six digit pin`() {
         val pin = RunPinGenerator(RandomNumberSource { 999_999 }).generate()
 
-        assertEquals("999999", pin)
+        assertEquals("999999", pin.displayValue())
     }
 }
