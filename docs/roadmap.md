@@ -46,11 +46,11 @@ Exit check: a selected folder survives Activity recreation and app restart, whil
 
 ## 3. Security core
 
-- [ ] Generate a per-run PIN and secret
-- [ ] Hash PIN comparisons without logging secrets
-- [ ] Issue, validate, expire, and revoke sessions
-- [ ] Issue, expire, and revoke random in-memory node handles
-- [ ] Add per-client and global PIN rate limits
+- [x] Generate a per-run PIN
+- [x] Compare PINs without logging secrets
+- [x] Issue, validate, expire, and revoke sessions
+- [x] Issue, expire, and revoke random in-memory node handles
+- [x] Add per-client and global PIN rate limits
 
 Test loop:
 
