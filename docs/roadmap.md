@@ -14,8 +14,8 @@ Exit check: a new contributor can explain the scope, request flow, and security 
 
 ## 1. Buildable Android shell
 
-- [ ] Add Gradle wrapper and version catalog
-- [ ] Add the Android application module
+- [x] Add Gradle wrapper and version catalog
+- [x] Add the Android application module
 - [ ] Add a minimal Compose screen
 - [ ] Add CI for unit tests and debug APK builds
 
@@ -80,15 +80,15 @@ Exit check: only descendants discovered through an enabled selected root can rec
 
 ## 5. Embedded HTTP server
 
-- [ ] Add Ktor application wiring
-- [ ] Add readiness and static asset routes
-- [ ] Add PIN session routes
-- [ ] Add share and directory routes
-- [ ] Add `GET` and `HEAD` download routes
-- [ ] Add request limits and safe response headers
-- [ ] Enforce same-origin login and reject unexpected hosts
-- [ ] Force untrusted files to download as attachments
-- [ ] Add cancellation-aware streaming
+- [x] Add Ktor application wiring
+- [x] Add readiness and static asset routes
+- [x] Add PIN session routes
+- [x] Add share and directory routes
+- [x] Add `GET` and `HEAD` download routes
+- [x] Add request limits and safe response headers
+- [x] Enforce same-origin login and reject unexpected hosts
+- [x] Force untrusted files to download as attachments
+- [x] Add cancellation-aware streaming
 
 Test loop:
 
