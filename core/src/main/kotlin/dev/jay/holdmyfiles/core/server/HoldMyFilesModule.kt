@@ -30,6 +30,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import io.ktor.utils.io.readRemaining
+import io.ktor.utils.io.writeFully
 import kotlinx.io.readByteArray
 import java.nio.ByteBuffer
 import java.nio.charset.CharacterCodingException
@@ -245,7 +246,18 @@ fun Application.holdMyFilesModule(
                     return@head
                 }
 
-                call.respondFileMetadata(browser.open(call.parameters["handle"].orEmpty()))
+                call.respondFile(browser.open(call.parameters["handle"].orEmpty()), includeContent = false)
+            }
+
+            get("/api/v1/files/{handle}") {
+                if (call.rejectUnexpectedHost(dependencies.allowedAuthority)) {
+                    return@get
+                }
+                if (!call.requireSession(authenticator)) {
+                    return@get
+                }
+
+                call.respondFile(browser.open(call.parameters["handle"].orEmpty()), includeContent = true)
             }
         }
     }
@@ -299,8 +311,9 @@ private suspend fun ApplicationCall.respondListing(
     }
 }
 
-private suspend fun ApplicationCall.respondFileMetadata(
+private suspend fun ApplicationCall.respondFile(
     outcome: BrowseOutcome<OpenedFile>,
+    includeContent: Boolean,
 ) {
     when (outcome) {
         is BrowseOutcome.Ok -> {
@@ -314,7 +327,19 @@ private suspend fun ApplicationCall.respondFileMetadata(
                     contentType = ContentType.Application.OctetStream,
                     status = HttpStatusCode.OK,
                     contentLength = openedFile.sizeBytes,
-                ) {}
+                ) {
+                    if (includeContent) {
+                        val buffer = ByteArray(DOWNLOAD_BUFFER_BYTES)
+                        while (true) {
+                            val count = openedFile.content.read(buffer, 0, buffer.size)
+                            if (count == -1) {
+                                break
+                            }
+                            check(count in 1..buffer.size) { "Invalid storage read count" }
+                            writeFully(buffer, 0, count)
+                        }
+                    }
+                }
             } finally {
                 openedFile.close()
             }
@@ -385,6 +410,7 @@ private val LOGIN_JSON = Json {
 }
 private const val SESSION_COOKIE = "hmf_session"
 private const val MAX_LOGIN_BODY_BYTES = 128L
+private const val DOWNLOAD_BUFFER_BYTES = 32 * 1_024
 
 @Serializable
 private class LoginRequest(

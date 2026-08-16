@@ -11,14 +11,17 @@ import dev.jay.holdmyfiles.core.storage.GuestBrowser
 import dev.jay.holdmyfiles.core.storage.GuestListing
 import dev.jay.holdmyfiles.core.storage.OpenedFile
 import dev.jay.holdmyfiles.core.storage.ReadLease
+import io.ktor.client.request.get
 import io.ktor.client.request.head
 import io.ktor.client.request.header
+import io.ktor.client.statement.bodyAsBytes
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.server.testing.testApplication
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -102,6 +105,77 @@ class DownloadRoutesTest {
         assertEquals(HttpStatusCode.NotFound, response.status)
     }
 
+    @Test
+    fun `missing session blocks file download before storage access`() = testApplication {
+        val browser = RecordingBrowser()
+        application { holdMyFilesModule(dependencies(authenticator(), browser)) }
+
+        val response = client.get("/api/v1/files/${"e".repeat(32)}") {
+            validHost()
+        }
+
+        assertEquals(HttpStatusCode.Unauthorized, response.status)
+        assertTrue(browser.openRequests.isEmpty())
+    }
+
+    @Test
+    fun `authenticated file download streams and closes the lease`() = testApplication {
+        val authenticator = authenticator()
+        val bytes = ByteArray(96 * 1_024 + 17) { index -> (index % 251).toByte() }
+        val lease = RecordingReadLease(bytes)
+        val browser = RecordingBrowser(
+            openResult = BrowseOutcome.Ok(
+                OpenedFile("archive.zip", bytes.size.toLong(), lease),
+            ),
+        )
+        val handle = "f".repeat(32)
+        application { holdMyFilesModule(dependencies(authenticator, browser)) }
+
+        val response = client.get("/api/v1/files/$handle") {
+            authenticated(authenticator)
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        assertEquals(ContentType.Application.OctetStream, response.contentType())
+        assertEquals(bytes.size.toString(), response.headers[HttpHeaders.ContentLength])
+        assertArrayEquals(bytes, response.bodyAsBytes())
+        assertTrue(lease.readCount > 1)
+        assertEquals(1, lease.closeCount)
+        assertEquals(listOf(handle), browser.openRequests)
+    }
+
+    @Test
+    fun `busy file storage asks the guest to retry`() = testApplication {
+        val authenticator = authenticator()
+        val browser = RecordingBrowser(openResult = BrowseOutcome.Busy)
+        application { holdMyFilesModule(dependencies(authenticator, browser)) }
+
+        val response = client.get("/api/v1/files/${"1".repeat(32)}") {
+            authenticated(authenticator)
+        }
+
+        assertEquals(HttpStatusCode.ServiceUnavailable, response.status)
+        assertEquals("1", response.headers[HttpHeaders.RetryAfter])
+        assertTrue(response.bodyAsText().contains("server_busy"))
+    }
+
+    @Test
+    fun `failed file read still closes the lease`() = testApplication {
+        val authenticator = authenticator()
+        val lease = FailingReadLease()
+        val browser = RecordingBrowser(
+            openResult = BrowseOutcome.Ok(OpenedFile("broken.bin", null, lease)),
+        )
+        application { holdMyFilesModule(dependencies(authenticator, browser)) }
+
+        client.get("/api/v1/files/${"2".repeat(32)}") {
+            authenticated(authenticator)
+        }.bodyAsBytes()
+
+        assertEquals(1, lease.readCount)
+        assertEquals(1, lease.closeCount)
+    }
+
     private fun dependencies(
         authenticator: SessionAuthenticator,
         browser: GuestBrowser,
@@ -152,13 +226,37 @@ class DownloadRoutesTest {
         override fun clearHandles() = Unit
     }
 
-    private class RecordingReadLease : ReadLease {
+    private class RecordingReadLease(
+        private val bytes: ByteArray = byteArrayOf(),
+    ) : ReadLease {
+        private var position = 0
         var readCount = 0
         var closeCount = 0
 
         override suspend fun read(destination: ByteArray, offset: Int, length: Int): Int {
             readCount += 1
-            return -1
+            if (position == bytes.size) {
+                return -1
+            }
+
+            val count = minOf(length, bytes.size - position)
+            bytes.copyInto(destination, offset, position, position + count)
+            position += count
+            return count
+        }
+
+        override fun close() {
+            closeCount += 1
+        }
+    }
+
+    private class FailingReadLease : ReadLease {
+        var readCount = 0
+        var closeCount = 0
+
+        override suspend fun read(destination: ByteArray, offset: Int, length: Int): Int {
+            readCount += 1
+            error("Read failed")
         }
 
         override fun close() {
