@@ -10,6 +10,7 @@ import dev.jay.holdmyfiles.core.storage.StorageNodeKind
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.withCharset
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.ApplicationCallPipeline
@@ -21,6 +22,7 @@ import io.ktor.server.request.contentType
 import io.ktor.server.request.path
 import io.ktor.server.request.receiveChannel
 import io.ktor.server.response.respond
+import io.ktor.server.response.respondBytes
 import io.ktor.server.response.respondBytesWriter
 import io.ktor.server.response.header
 import io.ktor.server.routing.delete
@@ -77,6 +79,7 @@ class ServerDependencies(
     val allowedAuthority: String = "localhost:80",
     val authenticator: SessionAuthenticator? = null,
     val browser: GuestBrowser? = null,
+    val guestAssets: GuestWebAssets? = null,
 ) {
     init {
         require(allowedAuthority.isNotBlank() && allowedAuthority.length <= 255)
@@ -116,6 +119,24 @@ fun Application.holdMyFilesModule(
     routing {
         get("/api/v1/health") {
             call.respond(HealthResponse())
+        }
+
+        dependencies.guestAssets?.let { assets ->
+            get("/") {
+                call.respondBytes(
+                    assets.indexHtml,
+                    ContentType.Text.Html.withCharset(Charsets.UTF_8),
+                )
+            }
+            get("/assets/app.css") {
+                call.respondBytes(
+                    assets.styleSheet,
+                    ContentType.Text.CSS.withCharset(Charsets.UTF_8),
+                )
+            }
+            get("/assets/app.js") {
+                call.respondBytes(assets.script, JAVASCRIPT_CONTENT_TYPE)
+            }
         }
 
         dependencies.authenticator?.let { authenticator ->
@@ -297,6 +318,9 @@ private suspend fun ApplicationCall.respondUnhandledRoute() {
 }
 
 private fun String.allowedMethods(): String? = when {
+    this == "/" -> "GET"
+    this == "/assets/app.css" -> "GET"
+    this == "/assets/app.js" -> "GET"
     this == "/api/v1/health" -> "GET"
     this == "/api/v1/session" -> "POST, DELETE"
     this == "/api/v1/shares" -> "GET"
@@ -445,6 +469,7 @@ private val LOGIN_JSON = Json {
     ignoreUnknownKeys = false
     isLenient = false
 }
+private val JAVASCRIPT_CONTENT_TYPE = ContentType.parse("text/javascript; charset=UTF-8")
 private const val SESSION_COOKIE = "hmf_session"
 private const val MAX_LOGIN_BODY_BYTES = 128L
 private const val DOWNLOAD_BUFFER_BYTES = 32 * 1_024
