@@ -137,12 +137,12 @@ Exit check: the complete owner flow works without opening settings except to ena
 
 ## 8. Guest experience
 
-- [ ] Add login view
-- [ ] Add share and folder browser
-- [ ] Add breadcrumbs and back navigation
-- [ ] Add download actions and progress feedback
-- [ ] Add expired-session recovery
-- [ ] Bundle deterministic web assets into the APK
+- [x] Add login view
+- [x] Add share and folder browser
+- [x] Add breadcrumbs and back navigation
+- [x] Add download actions and native browser progress
+- [x] Add expired-session recovery
+- [x] Bundle deterministic web assets into the APK
 
 Test loop:
 
