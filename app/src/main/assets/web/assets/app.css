@@ -1,0 +1,1 @@
+:root{color:#172554;font-synthesis:none;text-rendering:optimizelegibility;background:#eff6ff;font-family:Inter,ui-sans-serif,system-ui,sans-serif}*{box-sizing:border-box}body{min-width:320px;min-height:100vh;margin:0}#app{width:min(100% - 2rem,42rem);margin-inline:auto;padding-block:3rem}h1{margin-block:0 .75rem;font-size:clamp(2rem,8vw,3.5rem);line-height:1}p{line-height:1.6}
