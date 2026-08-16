@@ -141,7 +141,10 @@ fun Application.holdMyFilesModule(
 
         dependencies.authenticator?.let { authenticator ->
             post("/api/v1/session") {
-                if (call.request.headers[HttpHeaders.Origin] != dependencies.allowedOrigin) {
+                if (
+                    call.request.headers.getAll(HttpHeaders.Origin) !=
+                    listOf(dependencies.allowedOrigin)
+                ) {
                     call.respond(
                         HttpStatusCode.Forbidden,
                         ApiError("origin_rejected", "Request origin is not allowed."),
@@ -245,7 +248,10 @@ fun Application.holdMyFilesModule(
             }
 
             delete("/api/v1/session") {
-                if (call.request.headers[HttpHeaders.Origin] != dependencies.allowedOrigin) {
+                if (
+                    call.request.headers.getAll(HttpHeaders.Origin) !=
+                    listOf(dependencies.allowedOrigin)
+                ) {
                     call.respond(
                         HttpStatusCode.Forbidden,
                         ApiError("origin_rejected", "Request origin is not allowed."),

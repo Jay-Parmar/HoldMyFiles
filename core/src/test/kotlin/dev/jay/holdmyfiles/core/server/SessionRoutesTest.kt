@@ -86,6 +86,28 @@ class SessionRoutesTest {
     }
 
     @Test
+    fun `duplicate origin headers are rejected`() = testApplication {
+        val authenticator = authenticator(peerCapacity = 1)
+        application { holdMyFilesModule(dependencies(authenticator)) }
+
+        val rejected = client.post("/api/v1/session") {
+            header(HttpHeaders.Host, "localhost:80")
+            headers.append(HttpHeaders.Origin, "http://localhost:80")
+            headers.append(HttpHeaders.Origin, "http://evil.example")
+            contentType(ContentType.Application.Json)
+            setBody("""{"pin":"000042"}""")
+        }
+        val accepted = client.post("/api/v1/session") {
+            validOrigin()
+            contentType(ContentType.Application.Json)
+            setBody("""{"pin":"000042"}""")
+        }
+
+        assertEquals(HttpStatusCode.Forbidden, rejected.status)
+        assertEquals(HttpStatusCode.NoContent, accepted.status)
+    }
+
+    @Test
     fun `unexpected host is rejected`() = testApplication {
         application {
             holdMyFilesModule(
