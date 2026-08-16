@@ -45,9 +45,16 @@ class ShareSnapshot<R : Any>(
 ) {
     val shares: List<SharedFolder<R>> = shares.toList()
 
+    init {
+        require(this.shares.size <= MAX_CONFIGURED_SHARES)
+        require(this.shares.map { share -> share.id }.distinct().size == this.shares.size)
+    }
+
     override fun toString(): String =
         "ShareSnapshot(version=$version, shareCount=${shares.size})"
 }
+
+internal const val MAX_CONFIGURED_SHARES = 64
 
 interface ShareCatalog<R : Any> {
     suspend fun snapshot(): ShareSnapshot<R>

@@ -72,6 +72,36 @@ class SharedFolderTest {
     }
 
     @Test
+    fun `snapshot rejects duplicate share ids`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            ShareSnapshot(
+                ShareSetVersion(1),
+                listOf(
+                    SharedFolder(ShareId("same"), "One", true, TestRoot("root-one")),
+                    SharedFolder(ShareId("same"), "Two", true, TestRoot("root-two")),
+                ),
+            )
+        }
+    }
+
+    @Test
+    fun `snapshot bounds configured shares`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            ShareSnapshot(
+                ShareSetVersion(1),
+                List(65) { index ->
+                    SharedFolder(
+                        ShareId("share-$index"),
+                        "Share $index",
+                        true,
+                        TestRoot("root-$index"),
+                    )
+                },
+            )
+        }
+    }
+
+    @Test
     fun `rejects a negative share set version`() {
         assertThrows(IllegalArgumentException::class.java) {
             ShareSetVersion(-1)
