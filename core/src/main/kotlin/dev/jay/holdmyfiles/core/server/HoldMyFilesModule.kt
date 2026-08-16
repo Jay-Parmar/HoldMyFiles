@@ -215,7 +215,7 @@ fun Application.holdMyFilesModule(
                     )
                 ) {
                     is LoginResult.Authenticated -> {
-                        call.request.cookies[SESSION_COOKIE]?.let(authenticator::logout)
+                        call.singleSessionCookie()?.let(authenticator::logout)
                         call.response.headers.append(
                             HttpHeaders.SetCookie,
                             "$SESSION_COOKIE=${result.session.encodedValue()}; " +
@@ -259,7 +259,7 @@ fun Application.holdMyFilesModule(
                     return@delete
                 }
 
-                call.request.cookies[SESSION_COOKIE]?.let(authenticator::logout)
+                call.singleSessionCookie()?.let(authenticator::logout)
                 call.response.headers.append(
                     HttpHeaders.SetCookie,
                     "$SESSION_COOKIE=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict",
@@ -346,7 +346,7 @@ private fun String.isSingleHandlePath(prefix: String): Boolean {
 private suspend fun ApplicationCall.requireSession(
     authenticator: SessionAuthenticator,
 ): Boolean {
-    val encodedSession = request.cookies[SESSION_COOKIE]
+    val encodedSession = singleSessionCookie()
     if (encodedSession != null && authenticator.validate(encodedSession)) {
         return true
     }
@@ -356,6 +356,33 @@ private suspend fun ApplicationCall.requireSession(
         ApiError("session_required", "Enter the current PIN to continue."),
     )
     return false
+}
+
+private fun ApplicationCall.singleSessionCookie(): String? {
+    val cookieHeaders = request.headers.getAll(HttpHeaders.Cookie) ?: return null
+    var sessionValue: String? = null
+
+    for (header in cookieHeaders) {
+        for (rawSegment in header.split(';')) {
+            val segment = rawSegment.trim()
+            val separatorIndex = segment.indexOf('=')
+            val name = if (separatorIndex == -1) segment else segment.substring(0, separatorIndex)
+            if (name != SESSION_COOKIE) {
+                continue
+            }
+            if (separatorIndex == -1 || sessionValue != null) {
+                return null
+            }
+
+            val value = segment.substring(separatorIndex + 1)
+            if (value.isEmpty()) {
+                return null
+            }
+            sessionValue = value
+        }
+    }
+
+    return sessionValue
 }
 
 private suspend fun ApplicationCall.respondListing(

@@ -120,6 +120,26 @@ class BrowseRoutesTest {
         assertTrue(browser.listRequests.isEmpty())
     }
 
+    @Test
+    fun `duplicate session cookies block access before the browser`() = testApplication {
+        val authenticator = authenticator()
+        val browser = RecordingBrowser()
+        val result = authenticator.login("test-peer", "000042")
+        val token = (result as LoginResult.Authenticated).session.encodedValue()
+        application { holdMyFilesModule(dependencies(authenticator, browser)) }
+
+        val response = client.get("/api/v1/shares") {
+            validHost()
+            header(
+                HttpHeaders.Cookie,
+                "hmf_session=${"z".repeat(43)}; hmf_session=$token",
+            )
+        }
+
+        assertEquals(HttpStatusCode.Unauthorized, response.status)
+        assertEquals(0, browser.rootRequests)
+    }
+
     private fun dependencies(
         authenticator: SessionAuthenticator,
         browser: GuestBrowser,
