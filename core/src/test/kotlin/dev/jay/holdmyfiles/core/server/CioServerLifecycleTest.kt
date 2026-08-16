@@ -1,13 +1,20 @@
 package dev.jay.holdmyfiles.core.server
 
 import io.ktor.server.application.Application
+import io.ktor.server.response.respondBytesWriter
+import io.ktor.server.routing.get
+import io.ktor.server.routing.routing
 import java.net.HttpURLConnection
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.net.URI
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -93,6 +100,63 @@ class CioServerLifecycleTest {
             assertNull(authority.current())
             assertEquals(1, invalidations)
         } finally {
+            lifecycle.stop(gracePeriodMillis = 0, timeoutMillis = 2_000)
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `zero grace stop cancels active streams before invalidation`() = runBlocking {
+        val authority = MutableAuthoritySource()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        val streamStarted = CompletableDeferred<Unit>()
+        val streamFinished = CompletableDeferred<Unit>()
+        val invalidatedAfterStream = AtomicBoolean()
+        val lifecycle = CioServerLifecycle(
+            scope = scope,
+            bindHost = "127.0.0.1",
+            authoritySource = authority,
+            module = {
+                routing {
+                    get("/stream") {
+                        call.respondBytesWriter {
+                            streamStarted.complete(Unit)
+                            try {
+                                awaitCancellation()
+                            } finally {
+                                streamFinished.complete(Unit)
+                            }
+                        }
+                    }
+                }
+            },
+            invalidateGuests = {
+                invalidatedAfterStream.set(streamFinished.isCompleted)
+            },
+        )
+
+        val endpoint = lifecycle.start()
+        val connection = URI.create("${endpoint.origin}/stream")
+            .toURL()
+            .openConnection() as HttpURLConnection
+        connection.connectTimeout = 2_000
+        connection.readTimeout = 5_000
+        val clientRead = async(Dispatchers.IO) {
+            runCatching {
+                connection.inputStream.use { input -> input.read() }
+            }
+        }
+
+        try {
+            withTimeout(5_000) { streamStarted.await() }
+            lifecycle.stop(gracePeriodMillis = 0, timeoutMillis = 2_000)
+
+            withTimeout(5_000) { streamFinished.await() }
+            withTimeout(5_000) { clientRead.await() }
+            assertTrue(invalidatedAfterStream.get())
+        } finally {
+            connection.disconnect()
+            clientRead.cancel()
             lifecycle.stop(gracePeriodMillis = 0, timeoutMillis = 2_000)
             scope.cancel()
         }
