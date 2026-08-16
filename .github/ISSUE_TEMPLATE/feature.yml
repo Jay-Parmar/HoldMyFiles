@@ -1,0 +1,36 @@
+name: Feature request
+description: Propose a focused product change
+title: "feat: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Describe the user problem before suggesting a solution.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+    validations:
+      required: true
+  - type: textarea
+    id: security
+    attributes:
+      label: Security and privacy impact
+      description: Explain whether this changes network access, file access, authentication, or stored data.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance checks
+      placeholder: |
+        - [ ] Owner behavior
+        - [ ] Guest behavior
+        - [ ] Failure behavior
+    validations:
+      required: true
