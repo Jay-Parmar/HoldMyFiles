@@ -48,6 +48,16 @@ class SharedFolderTest {
         assertThrows(IllegalArgumentException::class.java) {
             SharedFolder(ShareId("valid"), "", enabled = true, storageRoot = TestRoot("root"))
         }
+        listOf("   ", "line\nbreak", "tab\tname").forEach { label ->
+            assertThrows(label, IllegalArgumentException::class.java) {
+                SharedFolder(
+                    ShareId("valid"),
+                    label,
+                    enabled = true,
+                    storageRoot = TestRoot("root"),
+                )
+            }
+        }
         assertThrows(IllegalArgumentException::class.java) {
             SharedFolder(
                 ShareId("valid"),
@@ -69,6 +79,49 @@ class SharedFolderTest {
 
         assertEquals(3L, snapshot.version.value)
         assertEquals(1, snapshot.shares.size)
+    }
+
+    @Test
+    fun `snapshot rejects duplicate share ids`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            ShareSnapshot(
+                ShareSetVersion(1),
+                listOf(
+                    SharedFolder(ShareId("same"), "One", true, TestRoot("root-one")),
+                    SharedFolder(ShareId("same"), "Two", true, TestRoot("root-two")),
+                ),
+            )
+        }
+    }
+
+    @Test
+    fun `snapshot rejects duplicate storage roots`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            ShareSnapshot(
+                ShareSetVersion(1),
+                listOf(
+                    SharedFolder(ShareId("one"), "One", true, TestRoot("same-root")),
+                    SharedFolder(ShareId("two"), "Two", false, TestRoot("same-root")),
+                ),
+            )
+        }
+    }
+
+    @Test
+    fun `snapshot bounds configured shares`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            ShareSnapshot(
+                ShareSetVersion(1),
+                List(65) { index ->
+                    SharedFolder(
+                        ShareId("share-$index"),
+                        "Share $index",
+                        true,
+                        TestRoot("root-$index"),
+                    )
+                },
+            )
+        }
     }
 
     @Test
