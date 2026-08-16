@@ -7,7 +7,7 @@ Each milestone ends in a working vertical slice. Each checkbox should normally b
 - [x] Record repository working rules
 - [x] Record the MVP architecture and security invariants
 - [x] Record the test and delivery plan
-- [ ] Add pull request and issue templates
+- [x] Add pull request and issue templates
 
 Exit check: a new contributor can explain the scope, request flow, and security boundary from the repository docs.
 
