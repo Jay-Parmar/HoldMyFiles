@@ -123,9 +123,8 @@ class InMemoryShareRepository<R : Any>(
     }
 
     private fun changed(shares: List<SharedFolder<R>>): ShareMutationResult.Changed<R> {
-        check(current.version.value < Long.MAX_VALUE) { "Share version is exhausted" }
         val snapshot = ShareSnapshot(
-            version = ShareSetVersion(current.version.value + 1),
+            version = ShareSetVersion(Math.addExact(current.version.value, 1)),
             shares = shares,
         )
         current = snapshot

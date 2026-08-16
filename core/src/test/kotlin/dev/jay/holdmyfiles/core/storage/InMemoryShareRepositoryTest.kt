@@ -256,6 +256,27 @@ class InMemoryShareRepositoryTest {
         assertTrue(repository.snapshot().shares.isEmpty())
     }
 
+    @Test
+    fun `version overflow fails without changing state`() = runTest {
+        val initial = ShareSnapshot(
+            ShareSetVersion(Long.MAX_VALUE),
+            listOf(share("one", "root-one")),
+        )
+        val repository = InMemoryShareRepository(initialSnapshot = initial)
+
+        val failure = try {
+            repository.rename(ShareId("one"), "Renamed")
+            null
+        } catch (cause: Throwable) {
+            cause
+        }
+
+        assertTrue(failure is ArithmeticException)
+        val snapshot = repository.snapshot()
+        assertEquals(Long.MAX_VALUE, snapshot.version.value)
+        assertEquals("Share one", snapshot.shares.single().label)
+    }
+
     private fun repository(): InMemoryShareRepository<TestRoot> {
         var id = 0
         return InMemoryShareRepository(
