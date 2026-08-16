@@ -20,7 +20,8 @@ data class SharedFolder<R : Any>(
     val storageRoot: R,
 ) {
     init {
-        require(label.isNotEmpty() && label.length <= MAX_LABEL_LENGTH)
+        require(label.isNotBlank() && label.length <= MAX_LABEL_LENGTH)
+        require(label.none(Char::isISOControl))
     }
 
     override fun toString(): String = "SharedFolder(id=$id, enabled=$enabled)"

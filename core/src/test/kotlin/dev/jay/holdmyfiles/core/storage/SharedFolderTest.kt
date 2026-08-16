@@ -48,6 +48,16 @@ class SharedFolderTest {
         assertThrows(IllegalArgumentException::class.java) {
             SharedFolder(ShareId("valid"), "", enabled = true, storageRoot = TestRoot("root"))
         }
+        listOf("   ", "line\nbreak", "tab\tname").forEach { label ->
+            assertThrows(label, IllegalArgumentException::class.java) {
+                SharedFolder(
+                    ShareId("valid"),
+                    label,
+                    enabled = true,
+                    storageRoot = TestRoot("root"),
+                )
+            }
+        }
         assertThrows(IllegalArgumentException::class.java) {
             SharedFolder(
                 ShareId("valid"),
