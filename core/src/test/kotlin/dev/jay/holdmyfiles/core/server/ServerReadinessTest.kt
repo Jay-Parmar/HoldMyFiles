@@ -1,6 +1,7 @@
 package dev.jay.holdmyfiles.core.server
 
 import io.ktor.client.request.get
+import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -14,7 +15,9 @@ class ServerReadinessTest {
     fun `health route reports readiness`() = testApplication {
         application { holdMyFilesModule() }
 
-        val response = client.get("/api/v1/health")
+        val response = client.get("/api/v1/health") {
+            header(HttpHeaders.Host, "localhost:80")
+        }
 
         assertEquals(HttpStatusCode.OK, response.status)
         assertEquals("{\"status\":\"ok\"}", response.bodyAsText())
@@ -24,7 +27,9 @@ class ServerReadinessTest {
     fun `responses carry restrictive browser headers`() = testApplication {
         application { holdMyFilesModule() }
 
-        val response = client.get("/api/v1/health")
+        val response = client.get("/api/v1/health") {
+            header(HttpHeaders.Host, "localhost:80")
+        }
 
         assertEquals("no-store", response.headers[HttpHeaders.CacheControl])
         assertEquals("nosniff", response.headers["X-Content-Type-Options"])
