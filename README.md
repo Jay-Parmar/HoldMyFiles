@@ -18,6 +18,7 @@ The owner chooses folders through Android's system picker, starts sharing, and g
 ## Documentation
 
 - [System architecture](docs/architecture.md)
+- [Security test plan](docs/security-testing.md)
 - [Development roadmap](docs/roadmap.md)
 - [Development setup](docs/development.md)
 

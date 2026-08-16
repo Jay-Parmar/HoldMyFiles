@@ -7,6 +7,7 @@ Each milestone ends in a working vertical slice. Each checkbox should normally b
 - [x] Record repository working rules
 - [x] Record the MVP architecture and security invariants
 - [x] Record the test and delivery plan
+- [x] Record the security test plan
 - [x] Add pull request and issue templates
 
 Exit check: a new contributor can explain the scope, request flow, and security boundary from the repository docs.
@@ -48,7 +49,7 @@ Exit check: a selected folder survives Activity recreation and app restart, whil
 - [ ] Generate a per-run PIN and secret
 - [ ] Hash PIN comparisons without logging secrets
 - [ ] Issue, validate, expire, and revoke sessions
-- [ ] Issue and validate signed node handles
+- [ ] Issue, expire, and revoke random in-memory node handles
 - [ ] Add per-client and global PIN rate limits
 
 Test loop:
@@ -56,6 +57,7 @@ Test loop:
 1. Write tests for invalid, modified, expired, and previous-run tokens.
 2. Implement the minimum passing security primitives.
 3. Run mutation-oriented cases against every token field.
+4. Verify root-set changes revoke existing sessions and handles.
 
 Exit check: no guest-controlled path or URI can enter the storage layer.
 
@@ -84,6 +86,8 @@ Exit check: only descendants discovered through an enabled selected root can rec
 - [ ] Add share and directory routes
 - [ ] Add `GET` and `HEAD` download routes
 - [ ] Add request limits and safe response headers
+- [ ] Enforce same-origin login and reject unexpected hosts
+- [ ] Force untrusted files to download as attachments
 - [ ] Add cancellation-aware streaming
 
 Test loop:
@@ -102,6 +106,8 @@ Exit check: Ktor tests cover login, browse, download, disabled shares, malformed
 - [ ] Add the persistent notification
 - [ ] Add the notification Stop action
 - [ ] Discover reachable local addresses
+- [ ] Request local network access on Android versions that require it
+- [ ] Bind only the selected local interface
 - [ ] Make repeated start and stop commands safe
 
 Test loop:

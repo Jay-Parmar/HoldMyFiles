@@ -141,8 +141,8 @@ Owner taps Start
 Guest opens local URL
   -> server returns bundled web client
   -> guest submits PIN
-  -> rate limiter checks the client
-  -> valid PIN creates a short-lived session cookie
+  -> rate limiter checks the socket peer address
+  -> valid PIN creates a short-lived random session cookie
   -> guest requests shares
   -> server returns enabled roots
   -> guest requests children using an opaque node handle
@@ -214,30 +214,42 @@ The phone hotspot is transport, not authorization. Every guest request still req
 ## Security invariants
 
 1. A guest cannot submit a filesystem path, document URI, or document ID.
-2. A node handle is signed, short-lived, and bound to one server run.
+2. A node handle is random, short-lived, and bound to one server run.
 3. A valid handle is useless without a valid session.
 4. Removing or disabling a share blocks its existing handles immediately.
-5. PIN attempts are rate limited by client address and globally.
+5. PIN attempts are rate limited by socket peer address and globally.
 6. Authentication failures do not reveal whether a share or file exists.
 7. Downloads are read-only and streamed with bounded concurrency.
 8. Stop invalidates all in-memory authorization material.
-9. Logs exclude PINs, cookies, content URIs, and handle payloads.
+9. Logs exclude PINs, cookies, content URIs, and handles.
+10. Untrusted files download as attachments and cannot execute on the authenticated origin.
+11. The server binds only to the local interface selected for this sharing run.
 
 ## Opaque handles
 
-A handle represents a server-issued reference to a node. It contains the share ID, provider URI, node kind, and expiry in an authenticated payload. The client cannot change the payload without invalidating its HMAC.
+A handle is a random identifier for a node reference held in a bounded in-memory map. It contains no share ID, URI, document ID, path, or filename. Each entry records the share, provider URI, node kind, and expiry on the server.
 
-The signing key exists only for the current server run. Restarting the server invalidates old links.
+The handle map exists only for the current server run. Restarting the server invalidates old links.
 
-The server issues handles only for roots it loaded from the share repository and children returned by the storage gateway. It never signs guest-provided URIs.
+The server issues handles only for roots it loaded from the share repository and children returned by the storage gateway. It never stores guest-provided URIs. Expired entries are removed and the map has a fixed maximum size.
 
 ## Network model
 
-The server listens on an available high port. It reports addresses from active private or link-local interfaces and rejects loopback-only results. The owner chooses the address that belongs to the hotspot or Wi-Fi network.
+The server listens on an available high port on one private or link-local interface. The owner chooses the hotspot or Wi-Fi address when Android reports more than one eligible interface. It never listens on cellular, VPN, loopback, or every interface at once.
 
 The first release does not assume a fixed gateway such as `192.168.43.1`. Android vendors use different subnets.
 
-Cleartext HTTP is acceptable for the first local-network MVP, but it is not confidential against a hostile local peer. The app must warn owners not to share sensitive files. A later secure transport can use a companion client with certificate pinning.
+Cleartext HTTP is acceptable for the first trusted local-network MVP, but it does not protect PINs, cookies, names, or file bytes from an on-path attacker. The app must warn owners not to share sensitive files or use the app with untrusted hotspot guests. A later secure transport can use a companion client with certificate pinning.
+
+## Browser boundary
+
+- The login route accepts only same-origin `POST` requests.
+- The server does not enable CORS.
+- Session cookies are host-only, `HttpOnly`, `SameSite=Strict`, memory-only, and scoped to `/`.
+- Responses set a restrictive content security policy, disable framing, prevent MIME sniffing, disable referrers, and prevent caching.
+- Downloads use safe `Content-Disposition` encoding and default to `application/octet-stream`.
+- Forwarding headers never affect authentication, rate limiting, or client identity.
+- Request lines, headers, bodies, sessions, handles, directory entries, connections, and concurrent streams have fixed limits.
 
 ## Technology choices
 
@@ -248,7 +260,7 @@ Cleartext HTTP is acceptable for the first local-network MVP, but it is not conf
 | Configuration | DataStore | Small atomic configuration set |
 | File access | Storage Access Framework | Owner-selected access without broad storage permission |
 | Guest UI | Static HTML, CSS, and TypeScript | Browser access with no guest install |
-| Authentication | Random PIN and in-memory session cookies | Temporary access scoped to one server run |
+| Authentication | Random PIN and random in-memory session cookies | Temporary access scoped to one server run |
 | Tests | JUnit, coroutine test, Ktor test host | Fast tests for domain and HTTP behavior |
 
 PostgreSQL, Django, and FastAPI are intentionally absent. This server runs inside Android and stores little structured data. Adding those systems would increase size and lifecycle complexity without helping the MVP.
