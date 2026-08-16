@@ -39,6 +39,16 @@ sealed interface BrowseOutcome<out T> {
     data object Unavailable : BrowseOutcome<Nothing>
 }
 
+interface GuestBrowser {
+    suspend fun roots(): BrowseOutcome<GuestListing>
+
+    suspend fun list(encodedHandle: String): BrowseOutcome<GuestListing>
+
+    suspend fun open(encodedHandle: String): BrowseOutcome<OpenedFile>
+
+    fun clearHandles()
+}
+
 class GuestFileBrowser<R : Any, N : Any>(
     private val catalog: ShareCatalog<R>,
     private val gateway: ReadOnlyStorageGateway<R, N>,
@@ -47,7 +57,7 @@ class GuestFileBrowser<R : Any, N : Any>(
     handleLifetimeMillis: Long = 15 * 60 * 1_000L,
     handleCapacity: Int = 4_096,
     private val maxListingEntries: Int = 1_000,
-) {
+) : GuestBrowser {
     private val handles = OpaqueHandleRegistry<NodeTarget<N>>(
         random = handleRandom,
         clock = handleClock,
@@ -59,7 +69,7 @@ class GuestFileBrowser<R : Any, N : Any>(
         require(maxListingEntries > 0)
     }
 
-    suspend fun roots(): BrowseOutcome<GuestListing> {
+    override suspend fun roots(): BrowseOutcome<GuestListing> {
         val snapshot = catalog.snapshot()
         val guestNodes = mutableListOf<GuestNode>()
         var truncated = false
@@ -101,7 +111,7 @@ class GuestFileBrowser<R : Any, N : Any>(
         return BrowseOutcome.Ok(GuestListing(guestNodes, truncated))
     }
 
-    suspend fun list(encodedHandle: String): BrowseOutcome<GuestListing> {
+    override suspend fun list(encodedHandle: String): BrowseOutcome<GuestListing> {
         val target = handles.resolve(encodedHandle) ?: return BrowseOutcome.InvalidHandle
         val snapshot = catalog.snapshot()
         if (snapshot.version != target.shareSetVersion) {
@@ -152,7 +162,7 @@ class GuestFileBrowser<R : Any, N : Any>(
         return BrowseOutcome.Ok(GuestListing(guestNodes, truncated))
     }
 
-    suspend fun open(encodedHandle: String): BrowseOutcome<OpenedFile> {
+    override suspend fun open(encodedHandle: String): BrowseOutcome<OpenedFile> {
         val target = handles.resolve(encodedHandle) ?: return BrowseOutcome.InvalidHandle
         val snapshot = catalog.snapshot()
         if (snapshot.version != target.shareSetVersion) {
@@ -176,7 +186,7 @@ class GuestFileBrowser<R : Any, N : Any>(
         }
     }
 
-    fun clearHandles() {
+    override fun clearHandles() {
         handles.clear()
     }
 
