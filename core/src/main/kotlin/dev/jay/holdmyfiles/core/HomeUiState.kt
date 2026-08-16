@@ -1,5 +1,7 @@
 package dev.jay.holdmyfiles.core
 
+import dev.jay.holdmyfiles.core.security.RunPin
+
 sealed interface ServerStatus {
     data object Stopped : ServerStatus
 
@@ -8,7 +10,7 @@ sealed interface ServerStatus {
     data class Running(
         val address: String,
         val port: Int,
-        val pin: String,
+        val pin: RunPin,
     ) : ServerStatus
 
     data object Stopping : ServerStatus
