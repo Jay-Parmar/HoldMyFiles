@@ -180,7 +180,7 @@ Persisted folder grants remain until the owner removes that share.
 
 ```text
 GET  /                         guest web client
-GET  /health                   server readiness
+GET  /api/v1/health            server readiness
 POST /api/v1/session           exchange PIN for session
 DELETE /api/v1/session         clear session
 GET  /api/v1/shares            enabled share roots
@@ -193,8 +193,8 @@ Error responses use one shape:
 
 ```json
 {
-  "code": "invalid_handle",
-  "message": "This link is no longer valid."
+  "code": "item_unavailable",
+  "message": "This item is no longer available."
 }
 ```
 
@@ -256,7 +256,7 @@ Cleartext HTTP is acceptable for the first trusted local-network MVP, but it doe
 | Concern | Choice | Reason |
 | --- | --- | --- |
 | Owner UI | Kotlin and Compose | Direct Android lifecycle and picker integration |
-| HTTP server | Ktor and Netty | Structured routing, streaming, and coroutine support |
+| HTTP server | Ktor and CIO | Small coroutine-based engine with streaming support |
 | Configuration | DataStore | Small atomic configuration set |
 | File access | Storage Access Framework | Owner-selected access without broad storage permission |
 | Guest UI | Static HTML, CSS, and TypeScript | Browser access with no guest install |
@@ -264,6 +264,45 @@ Cleartext HTTP is acceptable for the first trusted local-network MVP, but it doe
 | Tests | JUnit, coroutine test, Ktor test host | Fast tests for domain and HTTP behavior |
 
 PostgreSQL, Django, and FastAPI are intentionally absent. This server runs inside Android and stores little structured data. Adding those systems would increase size and lifecycle complexity without helping the MVP.
+
+## HTTP request boundary
+
+Every request passes through the same application-level checks before route code runs:
+
+```text
+TCP request
+  -> exact raw Host check
+  -> route and method match
+  -> exact Origin check for login and logout
+  -> bounded login body parsing
+  -> session validation for protected routes
+  -> opaque handle lookup
+  -> storage gateway
+```
+
+The Host value comes from a trusted authority source, not from forwarding headers or request parsing. The source stays empty while CIO binds an ephemeral port. After binding, the server publishes the selected host and resolved port as one `BoundEndpoint`. Clearing the source at the start of shutdown makes new requests fail closed.
+
+Only three fixed guest asset routes exist: `/`, `/assets/app.css`, and `/assets/app.js`. Guest input is never converted into a resource path.
+
+Downloads use a 32 KiB copy buffer. A `ReadLease` closes in `finally` on completion, provider failure, client disconnect, or server shutdown. Unknown file sizes omit `Content-Length`.
+
+## Server run ownership
+
+One `CioServerLifecycle` belongs to one foreground-service run. It cannot restart after shutdown or failed startup.
+
+```text
+create run context
+  -> bind selected host on port 0
+  -> resolve the assigned port
+  -> publish Host and Origin authority
+  -> serve requests
+  -> clear authority on Stop
+  -> stop CIO and join active calls
+  -> invalidate sessions and handles
+  -> discard the run context
+```
+
+This ordering prevents an in-flight login or folder listing from recreating authorization state after cleanup. A new sharing run creates a new PIN, authenticator, handle registry, browser, authority source, and lifecycle.
 
 ## Planned source layout
 
