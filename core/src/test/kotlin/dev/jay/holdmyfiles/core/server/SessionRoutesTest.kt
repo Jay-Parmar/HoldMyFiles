@@ -8,6 +8,7 @@ import dev.jay.holdmyfiles.core.security.RunPinGenerator
 import dev.jay.holdmyfiles.core.security.SessionAuthenticator
 import dev.jay.holdmyfiles.core.security.SessionRegistry
 import io.ktor.client.request.header
+import io.ktor.client.request.delete
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
@@ -164,6 +165,33 @@ class SessionRoutesTest {
         }
 
         assertEquals(HttpStatusCode.UnsupportedMediaType, response.status)
+    }
+
+    @Test
+    fun `logout revokes and expires the session cookie`() = testApplication {
+        val authenticator = authenticator()
+        application { holdMyFilesModule(dependencies(authenticator)) }
+        val login = client.post("/api/v1/session") {
+            validOrigin()
+            contentType(ContentType.Application.Json)
+            setBody("""{"pin":"000042"}""")
+        }
+        val cookie = login.headers[HttpHeaders.SetCookie].orEmpty().substringBefore(';')
+        val token = cookie.substringAfter("hmf_session=")
+
+        val response = client.delete("/api/v1/session") {
+            validOrigin()
+            header(HttpHeaders.Cookie, cookie)
+        }
+
+        assertEquals(HttpStatusCode.NoContent, response.status)
+        assertFalse(authenticator.validate(token))
+        val expiredCookie = response.headers[HttpHeaders.SetCookie].orEmpty()
+        assertTrue(expiredCookie.contains("hmf_session="))
+        assertTrue(expiredCookie.contains("Path=/"))
+        assertTrue(expiredCookie.contains("Max-Age=0"))
+        assertTrue(expiredCookie.contains("HttpOnly"))
+        assertTrue(expiredCookie.contains("SameSite=Strict"))
     }
 
     private fun dependencies(authenticator: SessionAuthenticator) = ServerDependencies(

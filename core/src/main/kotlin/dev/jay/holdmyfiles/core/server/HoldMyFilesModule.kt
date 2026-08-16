@@ -13,6 +13,7 @@ import io.ktor.server.request.contentType
 import io.ktor.server.request.receiveChannel
 import io.ktor.server.response.respond
 import io.ktor.server.response.header
+import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
@@ -179,6 +180,26 @@ fun Application.holdMyFilesModule(
                         ApiError("server_busy", "Try again later."),
                     )
                 }
+            }
+
+            delete("/api/v1/session") {
+                if (call.rejectUnexpectedHost(dependencies.allowedAuthority)) {
+                    return@delete
+                }
+                if (call.request.headers[HttpHeaders.Origin] != dependencies.allowedOrigin) {
+                    call.respond(
+                        HttpStatusCode.Forbidden,
+                        ApiError("origin_rejected", "Request origin is not allowed."),
+                    )
+                    return@delete
+                }
+
+                call.request.cookies[SESSION_COOKIE]?.let(authenticator::logout)
+                call.response.headers.append(
+                    HttpHeaders.SetCookie,
+                    "$SESSION_COOKIE=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict",
+                )
+                call.respond(HttpStatusCode.NoContent)
             }
         }
     }
