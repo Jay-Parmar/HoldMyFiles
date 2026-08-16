@@ -152,6 +152,30 @@ class GuestFileBrowser<R : Any, N : Any>(
         return BrowseOutcome.Ok(GuestListing(guestNodes, truncated))
     }
 
+    suspend fun open(encodedHandle: String): BrowseOutcome<OpenedFile> {
+        val target = handles.resolve(encodedHandle) ?: return BrowseOutcome.InvalidHandle
+        val snapshot = catalog.snapshot()
+        if (snapshot.version != target.shareSetVersion) {
+            return BrowseOutcome.StaleHandle
+        }
+
+        val share = snapshot.shares.firstOrNull { candidate -> candidate.id == target.shareId }
+        if (share == null || !share.enabled) {
+            return BrowseOutcome.StaleHandle
+        }
+        if (target.node.kind != StorageNodeKind.File) {
+            return BrowseOutcome.WrongKind
+        }
+
+        return when (val result = gateway.openFile(share.storageRoot, target.node)) {
+            is StorageOutcome.Ok -> BrowseOutcome.Ok(result.value)
+            StorageOutcome.Missing -> BrowseOutcome.Missing
+            StorageOutcome.WrongKind -> BrowseOutcome.WrongKind
+            StorageOutcome.Busy -> BrowseOutcome.Busy
+            else -> BrowseOutcome.Unavailable
+        }
+    }
+
     fun clearHandles() {
         handles.clear()
     }

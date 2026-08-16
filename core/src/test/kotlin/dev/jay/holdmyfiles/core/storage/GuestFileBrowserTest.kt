@@ -176,6 +176,71 @@ class GuestFileBrowserTest {
         assertTrue(listing.truncated)
     }
 
+    @Test
+    fun `file handle opens the exact stored node as read only content`() = runTest {
+        val root = TestRoot("content://provider/tree/files")
+        val rootNode = StorageNode(
+            TestReference("root-id"),
+            "Files",
+            StorageNodeKind.Directory,
+        )
+        val fileNode = StorageNode(
+            TestReference("file-id"),
+            "report.pdf",
+            StorageNodeKind.File,
+            sizeBytes = 42,
+        )
+        val openedFile = OpenedFile("report.pdf", 42, EmptyReadLease())
+        val catalog = FakeCatalog(snapshot(share("files", "Files", true, root)))
+        val gateway = FakeGateway().apply {
+            roots[root] = rootNode
+            nextListing = StorageOutcome.Ok(DirectoryListing(listOf(fileNode), false))
+            nextOpen = StorageOutcome.Ok(openedFile)
+        }
+        val browser = browser(catalog, gateway)
+        val rootHandle = (browser.roots() as BrowseOutcome.Ok).value.nodes.single().handle
+        val fileHandle = (browser.list(rootHandle.encodedValue()) as BrowseOutcome.Ok)
+            .value.nodes.single().handle
+
+        val result = browser.open(fileHandle.encodedValue())
+
+        assertSame(openedFile, (result as BrowseOutcome.Ok).value)
+        assertEquals(root, gateway.openRequests.single().first)
+        assertSame(fileNode, gateway.openRequests.single().second)
+    }
+
+    @Test
+    fun `directory handles never reach file opening`() = runTest {
+        val root = TestRoot("content://provider/tree/files")
+        val catalog = FakeCatalog(snapshot(share("files", "Files", true, root)))
+        val gateway = FakeGateway().apply {
+            roots[root] = StorageNode(
+                TestReference("root-id"),
+                "Files",
+                StorageNodeKind.Directory,
+            )
+        }
+        val browser = browser(catalog, gateway)
+        val rootHandle = (browser.roots() as BrowseOutcome.Ok).value.nodes.single().handle
+
+        val result = browser.open(rootHandle.encodedValue())
+
+        assertEquals(BrowseOutcome.WrongKind, result)
+        assertTrue(gateway.openRequests.isEmpty())
+    }
+
+    @Test
+    fun `unknown file handles never reach storage`() = runTest {
+        val catalog = FakeCatalog(snapshot())
+        val gateway = FakeGateway()
+
+        val result = browser(catalog, gateway).open("../private.txt")
+
+        assertEquals(BrowseOutcome.InvalidHandle, result)
+        assertEquals(0, catalog.snapshotRequests)
+        assertTrue(gateway.openRequests.isEmpty())
+    }
+
     private fun browser(
         catalog: ShareCatalog<TestRoot>,
         gateway: ReadOnlyStorageGateway<TestRoot, TestReference>,
@@ -213,6 +278,12 @@ class GuestFileBrowserTest {
         override fun toString(): String = "TestReference(redacted)"
     }
 
+    private class EmptyReadLease : ReadLease {
+        override suspend fun read(destination: ByteArray, offset: Int, length: Int): Int = -1
+
+        override fun close() = Unit
+    }
+
     private class FakeCatalog(
         var current: ShareSnapshot<TestRoot>,
     ) : ShareCatalog<TestRoot> {
@@ -228,7 +299,9 @@ class GuestFileBrowserTest {
         val roots = mutableMapOf<TestRoot, StorageNode<TestReference>>()
         val rootRequests = mutableListOf<TestRoot>()
         val listRequests = mutableListOf<Pair<TestRoot, StorageNode<TestReference>>>()
+        val openRequests = mutableListOf<Pair<TestRoot, StorageNode<TestReference>>>()
         var nextListing: StorageOutcome<DirectoryListing<TestReference>> = StorageOutcome.Missing
+        var nextOpen: StorageOutcome<OpenedFile> = StorageOutcome.Missing
 
         override suspend fun root(
             storageRoot: TestRoot,
@@ -249,6 +322,9 @@ class GuestFileBrowserTest {
         override suspend fun openFile(
             storageRoot: TestRoot,
             file: StorageNode<TestReference>,
-        ): StorageOutcome<OpenedFile> = error("Not used")
+        ): StorageOutcome<OpenedFile> {
+            openRequests += storageRoot to file
+            return nextOpen
+        }
     }
 }
