@@ -25,4 +25,6 @@ The owner chooses folders through Android's system picker, starts sharing, and g
 
 ## Project status
 
-The first vertical slice is under development.
+The Android MVP vertical slice is runnable. It includes persisted folder selection, a read-only SAF gateway, foreground-service ownership, local address discovery, PIN sessions, the guest web client, and owner start and stop controls.
+
+The debug build has passed unit, lint, instrumentation, and emulator acceptance checks. Physical multi-device testing, release signing, and broader device hardening remain before a public release.

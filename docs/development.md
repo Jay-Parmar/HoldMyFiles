@@ -24,15 +24,22 @@ The following stay outside Git:
 ## Main checks
 
 ```powershell
-.\gradlew.bat testDebugUnitTest
-.\gradlew.bat assembleDebug
-.\gradlew.bat lintDebug
+.\gradlew.bat :core:test
+.\gradlew.bat :app:testDebugUnitTest
+.\gradlew.bat :app:assembleDebug
+.\gradlew.bat :app:lintDebug
 ```
 
 The full local gate is:
 
 ```powershell
-.\gradlew.bat testDebugUnitTest assembleDebug lintDebug
+.\gradlew.bat :core:test :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
+```
+
+Run the DataStore instrumentation tests on a connected device or emulator with:
+
+```powershell
+.\gradlew.bat :app:connectedDebugAndroidTest
 ```
 
 The guest client gate is:
@@ -48,7 +55,7 @@ The web build refreshes the fixed assets under `app/src/main/assets/web`. Commit
 ## Physical device loop
 
 1. Enable developer options and USB debugging on the Android device.
-2. Install the debug APK with `adb install -r`.
+2. Install `app\build\outputs\apk\debug\app-debug.apk` with `adb install -r`.
 3. Select a disposable test folder.
 4. Start a hotspot and connect a second device.
 5. Run the acceptance path in `architecture.md`.
