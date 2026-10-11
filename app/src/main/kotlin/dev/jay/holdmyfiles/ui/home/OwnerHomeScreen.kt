@@ -264,6 +264,9 @@ private fun ServerStatusCard(
             .fillMaxWidth()
             .semantics {
                 liveRegion = LiveRegionMode.Polite
+                if (running) {
+                    testTag = "live-sharing-panel"
+                }
             },
         colors = CardDefaults.cardColors(
             containerColor = containerColor,
