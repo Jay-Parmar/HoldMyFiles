@@ -3,7 +3,10 @@
 package dev.jay.holdmyfiles.ui.home
 
 import android.annotation.SuppressLint
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -16,26 +19,29 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -51,7 +57,6 @@ import androidx.compose.ui.unit.dp
 import dev.jay.holdmyfiles.core.ServerStatus
 import dev.jay.holdmyfiles.core.server.BoundEndpoint
 
-@OptIn(ExperimentalMaterial3Api::class)
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
 fun OwnerHomeScreen(
@@ -61,22 +66,33 @@ fun OwnerHomeScreen(
 ) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        topBar = {
-            TopAppBar(title = { Text("Hold My Files") })
-        },
+        containerColor = MaterialTheme.colorScheme.background,
     ) { scaffoldPadding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.background,
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.18f),
+                            MaterialTheme.colorScheme.background,
+                        ),
+                    ),
+                )
                 .padding(scaffoldPadding),
             contentPadding = PaddingValues(
-                start = 16.dp,
-                top = 12.dp,
-                end = 16.dp,
-                bottom = 32.dp,
+                start = 18.dp,
+                top = 16.dp,
+                end = 18.dp,
+                bottom = 40.dp,
             ),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            item(key = "app-header") {
+                OwnerHeader()
+            }
+
             item(key = "server-status") {
                 ServerStatusCard(
                     state = state,
@@ -175,10 +191,62 @@ fun OwnerHomeScreen(
 }
 
 @Composable
+private fun OwnerHeader() {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        BrandMark(
+            background = MaterialTheme.colorScheme.primary,
+            foreground = MaterialTheme.colorScheme.onPrimary,
+            modifier = Modifier.size(52.dp),
+        )
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            Text(
+                text = "Hold My Files",
+                style = MaterialTheme.typography.headlineMedium,
+            )
+            Text(
+                text = "LOCAL  /  READ ONLY",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Surface(
+            color = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            shape = RoundedCornerShape(50),
+        ) {
+            Text(
+                text = "01",
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                style = MaterialTheme.typography.labelLarge,
+            )
+        }
+    }
+}
+
+@Composable
 private fun ServerStatusCard(
     state: OwnerHomeUiState,
     onAction: (HomeAction) -> Unit,
 ) {
+    val running = state.serverStatus is ServerStatus.Running
+    val containerColor = if (running) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.surface
+    }
+    val contentColor = if (running) {
+        MaterialTheme.colorScheme.onPrimary
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -186,19 +254,42 @@ private fun ServerStatusCard(
                 liveRegion = LiveRegionMode.Polite
             },
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            containerColor = containerColor,
+            contentColor = contentColor,
         ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (running) {
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+            } else {
+                MaterialTheme.colorScheme.outlineVariant
+            },
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (running) 8.dp else 2.dp),
     ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            when (val status = state.serverStatus) {
-                ServerStatus.Stopped -> StoppedStatus(state, onAction)
-                ServerStatus.Starting -> StartingStatus(onAction)
-                is ServerStatus.Running -> RunningStatus(status, state, onAction)
-                ServerStatus.Stopping -> StoppingStatus()
-                is ServerStatus.Failed -> FailedStatus(state, onAction)
+        Box {
+            if (!running) {
+                NetworkArtwork(
+                    color = MaterialTheme.colorScheme.primary,
+                    mutedColor = MaterialTheme.colorScheme.outlineVariant,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 14.dp, end = 10.dp)
+                        .size(112.dp)
+                        .alpha(0.72f),
+                )
+            }
+            Column(
+                modifier = Modifier.padding(22.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                when (val status = state.serverStatus) {
+                    ServerStatus.Stopped -> StoppedStatus(state, onAction)
+                    ServerStatus.Starting -> StartingStatus(onAction)
+                    is ServerStatus.Running -> RunningStatus(status, state, onAction)
+                    ServerStatus.Stopping -> StoppingStatus()
+                    is ServerStatus.Failed -> FailedStatus(state, onAction)
+                }
             }
         }
     }
@@ -209,15 +300,25 @@ private fun StoppedStatus(
     state: OwnerHomeUiState,
     onAction: (HomeAction) -> Unit,
 ) {
-    StatusTitle("Not sharing")
-    Text(
-        text = enabledFoldersText(state.enabledShareCount),
-        style = MaterialTheme.typography.bodyLarge,
-    )
+    StatusBadge("OFFLINE")
+    Column(
+        modifier = Modifier.fillMaxWidth(0.68f),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        StatusTitle("Not sharing")
+        Text(
+            text = enabledFoldersText(state.enabledShareCount),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
     Button(
         onClick = { onAction(HomeAction.StartSharing) },
         enabled = state.canStart,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp),
+        shape = RoundedCornerShape(16.dp),
     ) {
         Text("Start sharing")
     }
@@ -231,11 +332,15 @@ private fun StoppedStatus(
 
 @Composable
 private fun StartingStatus(onAction: (HomeAction) -> Unit) {
+    StatusBadge("CONNECTING")
     ProgressHeading("Starting sharing")
     Text("Preparing a private PIN and opening the local server.")
     OutlinedButton(
         onClick = { onAction(HomeAction.StopSharing) },
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(52.dp),
+        shape = RoundedCornerShape(16.dp),
     ) {
         Text("Cancel")
     }
@@ -250,63 +355,169 @@ private fun RunningStatus(
     val endpoint = safeEndpoint(status)
     val pin = status.pin.displayValue()
 
-    StatusTitle("Sharing is active")
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            StatusBadge("LIVE", active = true)
+            StatusTitle("Sharing is active")
+        }
+        NetworkArtwork(
+            color = MaterialTheme.colorScheme.onPrimary,
+            mutedColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.28f),
+            modifier = Modifier.size(82.dp),
+        )
+    }
     if (state.enabledShareCount == 0) {
         Text("Sharing is active, but no folders are enabled.")
     } else {
-        Text("Guests on the same Wi-Fi or hotspot can open:")
+        Text("Guests on the same Wi-Fi or hotspot can connect now.")
     }
 
-    Text("Sharing URL", style = MaterialTheme.typography.labelLarge)
-    SelectionContainer {
-        Text(
-            text = endpoint?.origin ?: "Local address unavailable",
-            style = MaterialTheme.typography.bodyLarge,
-            fontFamily = FontFamily.Monospace,
-        )
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.onPrimary,
+        contentColor = MaterialTheme.colorScheme.primary,
+        shape = RoundedCornerShape(16.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text("SHARING URL", style = MaterialTheme.typography.labelMedium)
+            SelectionContainer {
+                Text(
+                    text = endpoint?.origin ?: "Local address unavailable",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
     }
 
-    Text("Sharing PIN", style = MaterialTheme.typography.labelLarge)
-    Text(
-        text = pin.chunked(3).joinToString(" "),
+    Text("SHARING PIN", style = MaterialTheme.typography.labelMedium)
+    PinDigits(
+        pin = pin,
         modifier = Modifier.clearAndSetSemantics {
             contentDescription = "Sharing PIN ${pin.toCharArray().joinToString(" ")}"
         },
-        style = MaterialTheme.typography.headlineMedium,
-        fontFamily = FontFamily.Monospace,
-        fontWeight = FontWeight.Bold,
     )
 
-    ButtonGrid(
-        firstText = "Copy sharing URL",
-        firstEnabled = endpoint != null,
-        onFirst = { onAction(HomeAction.CopyUrl) },
-        secondText = "Copy sharing PIN",
-        onSecond = { onAction(HomeAction.CopyPin) },
-    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        OutlinedButton(
+            onClick = { onAction(HomeAction.CopyUrl) },
+            enabled = endpoint != null,
+            modifier = Modifier
+                .weight(1f)
+                .height(52.dp),
+            shape = RoundedCornerShape(14.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f)),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            ),
+        ) {
+            Text("Copy URL")
+        }
+        OutlinedButton(
+            onClick = { onAction(HomeAction.CopyPin) },
+            modifier = Modifier
+                .weight(1f)
+                .height(52.dp),
+            shape = RoundedCornerShape(14.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f)),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            ),
+        ) {
+            Text("Copy PIN")
+        }
+    }
     OutlinedButton(
         onClick = { onAction(HomeAction.ShareAccessDetails) },
         enabled = endpoint != null,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(52.dp),
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f)),
+        colors = ButtonDefaults.outlinedButtonColors(
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+        ),
     ) {
         Text("Share access details")
     }
     Button(
         onClick = { onAction(HomeAction.StopSharing) },
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.onPrimary,
+            contentColor = MaterialTheme.colorScheme.primary,
+        ),
     ) {
         Text("Stop sharing")
     }
 }
 
 @Composable
+private fun PinDigits(
+    pin: String,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        pin.forEach { digit ->
+            Surface(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(58.dp),
+                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.12f),
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(
+                    1.dp,
+                    MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.24f),
+                ),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = digit.toString(),
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontFamily = FontFamily.Monospace,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun StoppingStatus() {
+    StatusBadge("CLOSING")
     ProgressHeading("Stopping sharing")
     Text("Closing guest connections and invalidating access.")
     Button(
         onClick = {},
         enabled = false,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(52.dp),
+        shape = RoundedCornerShape(16.dp),
     ) {
         Text("Stopping")
     }
@@ -317,12 +528,16 @@ private fun FailedStatus(
     state: OwnerHomeUiState,
     onAction: (HomeAction) -> Unit,
 ) {
+    StatusBadge("NEEDS ATTENTION", warning = true)
     StatusTitle("Sharing could not start")
     Text("Check that Wi-Fi or a hotspot is active, then try again.")
     Button(
         onClick = { onAction(HomeAction.StartSharing) },
         enabled = state.canStart,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp),
+        shape = RoundedCornerShape(16.dp),
     ) {
         Text("Retry")
     }
@@ -349,26 +564,37 @@ private fun StatusTitle(text: String) {
 }
 
 @Composable
-private fun ButtonGrid(
-    firstText: String,
-    firstEnabled: Boolean,
-    onFirst: () -> Unit,
-    secondText: String,
-    onSecond: () -> Unit,
+private fun StatusBadge(
+    label: String,
+    active: Boolean = false,
+    warning: Boolean = false,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedButton(
-            onClick = onFirst,
-            enabled = firstEnabled,
-            modifier = Modifier.fillMaxWidth(),
+    val background = when {
+        active -> MaterialTheme.colorScheme.onPrimary
+        warning -> MaterialTheme.colorScheme.errorContainer
+        else -> MaterialTheme.colorScheme.surfaceVariant
+    }
+    val content = when {
+        active -> MaterialTheme.colorScheme.primary
+        warning -> MaterialTheme.colorScheme.onErrorContainer
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Surface(
+        color = background,
+        contentColor = content,
+        shape = RoundedCornerShape(50),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
         ) {
-            Text(firstText)
-        }
-        OutlinedButton(
-            onClick = onSecond,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(secondText)
+            Box(
+                modifier = Modifier
+                    .size(7.dp)
+                    .background(content, RoundedCornerShape(50)),
+            )
+            Text(label, style = MaterialTheme.typography.labelMedium)
         }
     }
 }
