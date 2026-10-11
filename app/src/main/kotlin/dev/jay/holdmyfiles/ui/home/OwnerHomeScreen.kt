@@ -114,19 +114,31 @@ fun OwnerHomeScreen(
             }
 
             item(key = "folders-heading") {
-                Column(
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Text(
-                        text = "Shared folders",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
-                    )
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(3.dp),
+                    ) {
+                        Text(
+                            text = "Shared folders",
+                            style = MaterialTheme.typography.titleLarge,
+                        )
+                        Text(
+                            text = if (state.shares.size == 1) "1 FOLDER" else "${state.shares.size} FOLDERS",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     FilledTonalButton(
                         onClick = { onAction(HomeAction.AddFolder) },
                         enabled = !state.addingFolder,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.height(48.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        contentPadding = PaddingValues(horizontal = 18.dp),
                     ) {
                         if (state.addingFolder) {
                             CircularProgressIndicator(modifier = Modifier.size(20.dp))
@@ -604,22 +616,38 @@ private fun TransportWarning() {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+        ),
+        border = BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.tertiary.copy(alpha = 0.45f),
         ),
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(
-                text = "Local connection warning",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
+            SecurityMark(
+                background = MaterialTheme.colorScheme.tertiaryContainer,
+                foreground = MaterialTheme.colorScheme.onTertiaryContainer,
+                modifier = Modifier.size(48.dp),
             )
-            Text(
-                "Guests must be on the same Wi-Fi or hotspot. This connection is not " +
-                    "encrypted. Do not share sensitive files or use an untrusted network.",
-            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                Text(
+                    text = "Trusted networks only",
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text = "Guests need the same Wi-Fi or hotspot. Traffic is not encrypted.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -652,7 +680,11 @@ private fun ErrorCard(
 
 @Composable
 private fun LoadingFoldersCard() {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
         Row(
             modifier = Modifier.padding(20.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -666,7 +698,11 @@ private fun LoadingFoldersCard() {
 
 @Composable
 private fun FailedFoldersCard(onRetry: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.45f)),
+    ) {
         Column(
             modifier = Modifier.padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -678,7 +714,10 @@ private fun FailedFoldersCard(onRetry: () -> Unit) {
             Text("Your folders were not changed. Try loading them again.")
             OutlinedButton(
                 onClick = onRetry,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                shape = RoundedCornerShape(14.dp),
             ) {
                 Text("Retry loading folders")
             }
@@ -691,21 +730,39 @@ private fun EmptyFoldersCard(
     addingFolder: Boolean,
     onAdd: () -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
         Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(22.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text(
-                text = "No folders selected",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
+            BrandMark(
+                background = MaterialTheme.colorScheme.primaryContainer,
+                foreground = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.size(68.dp),
             )
-            Text("Choose a folder to make its files available for read-only access.")
+            Text(
+                text = "Nothing here yet",
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Text(
+                text = "Pick a folder for guests to browse. Your files always stay read-only.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             OutlinedButton(
                 onClick = onAdd,
                 enabled = !addingFolder,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                shape = RoundedCornerShape(14.dp),
             ) {
                 Text(if (addingFolder) "Adding folder" else "Choose a folder")
             }
@@ -722,11 +779,27 @@ private fun ShareRow(
 ) {
     val toggleEnabled = share.health == ShareHealth.Ready && !updating
     val status = shareStatus(share)
+    val readyAndShared = share.health == ShareHealth.Ready && share.enabled
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .then(Modifier.semanticsShareTag(share)),
+        colors = CardDefaults.cardColors(
+            containerColor = if (readyAndShared) {
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.34f)
+            } else {
+                MaterialTheme.colorScheme.surface
+            },
+        ),
+        border = BorderStroke(
+            1.dp,
+            if (readyAndShared) {
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
+            } else {
+                MaterialTheme.colorScheme.outlineVariant
+            },
+        ),
     ) {
         Row(
             modifier = Modifier
@@ -739,13 +812,28 @@ private fun ShareRow(
                 )
                 .semantics {
                     stateDescription = if (share.enabled) "Enabled" else "Disabled"
+                    testTag = "share-toggle-${share.id.value}"
                 }
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            BrandMark(
+                background = if (readyAndShared) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.surfaceVariant
+                },
+                foreground = if (readyAndShared) {
+                    MaterialTheme.colorScheme.onPrimary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                modifier = Modifier.size(50.dp),
+            )
+            Spacer(Modifier.width(12.dp))
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
             ) {
                 Text(
                     text = share.label,
@@ -755,8 +843,18 @@ private fun ShareRow(
                 )
                 Text(
                     text = status,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = when (share.health) {
+                        ShareHealth.Ready -> if (share.enabled) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+
+                        ShareHealth.PermissionMissing,
+                        ShareHealth.StorageUnavailable,
+                        -> MaterialTheme.colorScheme.error
+                    },
                 )
             }
             Spacer(Modifier.width(12.dp))
@@ -772,14 +870,25 @@ private fun ShareRow(
             }
         }
         HorizontalDivider()
-        TextButton(
-            onClick = onRemove,
-            enabled = !updating,
+        Row(
             modifier = Modifier
-                .align(Alignment.End)
-                .height(48.dp),
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("Remove ${share.label}")
+            Text(
+                text = "Read-only access",
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            TextButton(
+                onClick = onRemove,
+                enabled = !updating,
+                modifier = Modifier.height(48.dp),
+            ) {
+                Text("Remove ${share.label}")
+            }
         }
     }
 }
@@ -833,9 +942,9 @@ private fun enabledFoldersText(count: Int): String = when (count) {
 }
 
 private fun shareStatus(share: ShareRowUi): String = when (share.health) {
-    ShareHealth.PermissionMissing -> "Permission lost"
-    ShareHealth.StorageUnavailable -> "Storage unavailable"
-    ShareHealth.Ready -> if (share.enabled) "Shared" else "Not shared"
+    ShareHealth.PermissionMissing -> "PERMISSION LOST"
+    ShareHealth.StorageUnavailable -> "STORAGE UNAVAILABLE"
+    ShareHealth.Ready -> if (share.enabled) "SHARED" else "NOT SHARED"
 }
 
 private fun errorMessage(error: OwnerError): String = when (error) {

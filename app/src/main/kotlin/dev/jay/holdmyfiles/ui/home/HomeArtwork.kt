@@ -100,3 +100,49 @@ internal fun NetworkArtwork(
         }
     }
 }
+
+@Composable
+internal fun SecurityMark(
+    background: Color,
+    foreground: Color,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier.background(background, RoundedCornerShape(14.dp)),
+    ) {
+        Canvas(Modifier.fillMaxSize()) {
+            val shield = Path().apply {
+                moveTo(size.width * 0.50f, size.height * 0.16f)
+                lineTo(size.width * 0.78f, size.height * 0.28f)
+                lineTo(size.width * 0.74f, size.height * 0.62f)
+                quadraticTo(
+                    size.width * 0.70f,
+                    size.height * 0.78f,
+                    size.width * 0.50f,
+                    size.height * 0.86f,
+                )
+                quadraticTo(
+                    size.width * 0.30f,
+                    size.height * 0.78f,
+                    size.width * 0.26f,
+                    size.height * 0.62f,
+                )
+                lineTo(size.width * 0.22f, size.height * 0.28f)
+                close()
+            }
+            drawPath(shield, foreground, style = Stroke(width = size.minDimension * 0.06f))
+            drawLine(
+                color = foreground,
+                start = Offset(size.width * 0.50f, size.height * 0.37f),
+                end = Offset(size.width * 0.50f, size.height * 0.58f),
+                strokeWidth = size.minDimension * 0.06f,
+                cap = StrokeCap.Round,
+            )
+            drawCircle(
+                color = foreground,
+                radius = size.minDimension * 0.035f,
+                center = Offset(size.width * 0.50f, size.height * 0.69f),
+            )
+        }
+    }
+}

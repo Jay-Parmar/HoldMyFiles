@@ -3,8 +3,10 @@ package dev.jay.holdmyfiles.ui.home
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import dev.jay.holdmyfiles.core.storage.ShareId
 import dev.jay.holdmyfiles.ui.theme.HoldMyFilesTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -31,5 +33,40 @@ class OwnerHomeScreenTest {
         composeRule.onNodeWithText("Choose a folder").performClick()
 
         assertEquals(HomeAction.AddFolder, receivedAction)
+    }
+
+    @Test
+    fun configuredFolderCardSupportsSharingAndRemoval() {
+        val shareId = ShareId("travel")
+        val receivedActions = mutableListOf<HomeAction>()
+        composeRule.setContent {
+            HoldMyFilesTheme {
+                OwnerHomeScreen(
+                    state = OwnerHomeUiState(
+                        shares = listOf(
+                            ShareRowUi(
+                                id = shareId,
+                                label = "Travel photos",
+                                enabled = true,
+                            ),
+                        ),
+                        sharesLoadState = SharesLoadState.Ready,
+                    ),
+                    onAction = receivedActions::add,
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("1 FOLDER").assertIsDisplayed()
+        composeRule.onNodeWithTag("share-toggle-travel").performClick()
+        composeRule.onNodeWithText("Remove Travel photos").performClick()
+
+        assertEquals(
+            listOf(
+                HomeAction.SetEnabled(shareId, false),
+                HomeAction.RequestRemove(shareId),
+            ),
+            receivedActions,
+        )
     }
 }
