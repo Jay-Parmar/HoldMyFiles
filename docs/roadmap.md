@@ -16,7 +16,7 @@ Exit check: a new contributor can explain the scope, request flow, and security 
 
 - [x] Add Gradle wrapper and version catalog
 - [x] Add the Android application module
-- [ ] Add a minimal Compose screen
+- [x] Add a minimal Compose screen
 - [ ] Add CI for unit tests and debug APK builds
 
 Test loop:
@@ -29,12 +29,12 @@ Exit check: `gradlew testDebugUnitTest assembleDebug lintDebug` passes from a cl
 
 ## 2. Share configuration
 
-- [ ] Define the `ShareRoot` domain model
-- [ ] Add serialization tests
-- [ ] Implement the DataStore repository
-- [ ] Launch the system tree picker
-- [ ] Persist read permission and save a selected root
-- [ ] List, enable, disable, and remove saved roots
+- [x] Define the shared-folder domain model
+- [x] Add serialization tests
+- [x] Implement the DataStore repository
+- [x] Launch the system tree picker
+- [x] Persist read permission and save a selected root
+- [x] List, enable, disable, and remove saved roots
 
 Test loop:
 
@@ -67,7 +67,7 @@ Exit check: no guest-controlled path or URI can enter the storage layer.
 - [x] Query a tree root and its children through the core gateway
 - [x] Distinguish directories and regular files
 - [x] Open file metadata and content streams through the core gateway
-- [ ] Handle missing grants and removed storage
+- [x] Handle missing grants and removed storage
 - [x] Bound concurrent open streams
 
 Test loop:
@@ -100,15 +100,15 @@ Exit check: Ktor tests cover login, browse, download, disabled shares, malformed
 
 ## 6. Foreground service
 
-- [ ] Add the connected-device foreground service declaration
-- [ ] Add start, stop, and status commands
-- [ ] Publish immutable server state
-- [ ] Add the persistent notification
-- [ ] Add the notification Stop action
-- [ ] Discover reachable local addresses
-- [ ] Request local network access on Android versions that require it
-- [ ] Bind only the selected local interface
-- [ ] Make repeated start and stop commands safe
+- [x] Add the connected-device foreground service declaration
+- [x] Add start, stop, and status commands
+- [x] Publish immutable server state
+- [x] Add the persistent notification
+- [x] Add the notification Stop action
+- [x] Discover reachable local addresses
+- [x] Request local network access on Android versions that require it
+- [x] Bind only the selected local interface
+- [x] Make repeated start and stop commands safe
 
 Test loop:
 
@@ -120,12 +120,12 @@ Exit check: sharing survives Activity recreation and stops from both the app and
 
 ## 7. Owner experience
 
-- [ ] Build the empty share state
-- [ ] Build the share list and controls
-- [ ] Build start and stop controls
-- [ ] Show URL, port, and PIN while running
-- [ ] Show actionable error states
-- [ ] Add accessibility labels and large touch targets
+- [x] Build the empty share state
+- [x] Build the share list and controls
+- [x] Build start and stop controls
+- [x] Show URL, port, and PIN while running
+- [x] Show actionable error states
+- [x] Add accessibility labels and large touch targets
 
 Test loop:
 
@@ -157,7 +157,7 @@ Exit check: a current Chrome, Firefox, or Safari browser can log in, browse, and
 - [ ] Run traversal and token tampering tests
 - [ ] Test large files and client disconnects
 - [ ] Test service death, storage removal, and network changes
-- [ ] Add privacy copy and cleartext transport warning
+- [x] Add privacy copy and cleartext transport warning
 - [ ] Add release signing instructions
 - [ ] Build a release candidate APK
 
