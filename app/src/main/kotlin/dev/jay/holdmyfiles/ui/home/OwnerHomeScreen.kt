@@ -888,9 +888,13 @@ private fun ShareRow(
             TextButton(
                 onClick = onRemove,
                 enabled = !updating,
-                modifier = Modifier.height(48.dp),
+                modifier = Modifier
+                    .height(48.dp)
+                    .semantics {
+                        contentDescription = "Remove ${share.label}"
+                    },
             ) {
-                Text("Remove ${share.label}")
+                Text("Remove")
             }
         }
     }

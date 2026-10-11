@@ -64,7 +64,7 @@ class OwnerHomeScreenTest {
 
         composeRule.onNodeWithText("1 FOLDER").assertIsDisplayed()
         composeRule.onNodeWithTag("share-toggle-travel").performClick()
-        composeRule.onNodeWithText("Remove Travel photos").performClick()
+        composeRule.onNode(hasContentDescription("Remove Travel photos")).performClick()
 
         assertEquals(
             listOf(
